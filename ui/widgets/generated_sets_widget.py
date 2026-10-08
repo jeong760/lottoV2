@@ -196,6 +196,8 @@ class GeneratedSetsWidget(QWidget):
     dynamic color-coded matches/probabilities with Gold for 1st place, Excel export options,
     and Bonus Swap Optimizer integration.
     """
+    DEFAULT_UI_HISTORY_SESSION_LIMIT = 1200
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
@@ -398,7 +400,11 @@ class GeneratedSetsWidget(QWidget):
             self.table.setSortingEnabled(False)
             self.table.setRowCount(0)
 
-            history_records = LottoDBHelper.get_generation_history() if hasattr(LottoDBHelper, 'get_generation_history') else []
+            history_records = (
+                LottoDBHelper.get_generation_history(max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT)
+                if hasattr(LottoDBHelper, 'get_generation_history')
+                else []
+            )
             if not history_records:
                 _log.warning("No generated number sets found in local database.")
                 self.table.setSortingEnabled(True)
@@ -611,11 +617,6 @@ class GeneratedSetsWidget(QWidget):
                 bonus_no = random.choice(remaining)
 
             latest_winning_tuple = (set(), 0)
-            try:
-                draws = LottoDBHelper.get_generation_history()
-            except Exception:
-                pass
-
             result = LottoEvaluator.optimize_bonus_swap(nums, bonus_no, latest_winning_tuple)
             if result.get("status") == "error":
                 QMessageBox.warning(self, "Error", result.get("message", "Optimization failed."))
@@ -744,8 +745,16 @@ class GeneratedSetsWidget(QWidget):
                 QMessageBox.warning(self, "Session Details", "Invalid session id for selected row.")
                 return
 
-            all_sessions = LottoDBHelper.get_all_generation_history() if hasattr(LottoDBHelper, "get_all_generation_history") else []
-            session_payload = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
+            session_payload = (
+                LottoDBHelper.get_generation_session_by_id(session_id)
+                if hasattr(LottoDBHelper, "get_generation_session_by_id")
+                else None
+            )
+            if not isinstance(session_payload, dict) and hasattr(LottoDBHelper, "get_all_generation_history"):
+                all_sessions = LottoDBHelper.get_all_generation_history(
+                    max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT
+                )
+                session_payload = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
             if not isinstance(session_payload, dict):
                 QMessageBox.warning(self, "Session Details", "Could not find selected session payload.")
                 return
@@ -769,12 +778,19 @@ class GeneratedSetsWidget(QWidget):
                 QMessageBox.warning(self, "Export Warning", "Invalid session id for selected row.")
                 return
 
-            all_sessions = LottoDBHelper.get_all_generation_history() if hasattr(LottoDBHelper, "get_all_generation_history") else []
-            if not isinstance(all_sessions, list) or not all_sessions:
-                QMessageBox.warning(self, "Export Warning", "No session history available.")
-                return
-
-            selected_session = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
+            selected_session = (
+                LottoDBHelper.get_generation_session_by_id(session_id)
+                if hasattr(LottoDBHelper, "get_generation_session_by_id")
+                else None
+            )
+            if not isinstance(selected_session, dict) and hasattr(LottoDBHelper, "get_all_generation_history"):
+                all_sessions_fallback = LottoDBHelper.get_all_generation_history(
+                    max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT
+                )
+                selected_session = next(
+                    (row for row in all_sessions_fallback if int(row.get("id", 0) or 0) == session_id),
+                    None,
+                )
             if not isinstance(selected_session, dict):
                 QMessageBox.warning(self, "Export Warning", "Could not find selected session payload.")
                 return
@@ -802,25 +818,31 @@ class GeneratedSetsWidget(QWidget):
                     "score_weight_profile": (selected_session.get("metadata", {}) if isinstance(selected_session.get("metadata"), dict) else {}).get("score_weight_profile", {}),
                 }
 
-            sessions_for_batch = []
-            for session in all_sessions:
-                if not isinstance(session, dict):
-                    continue
-                candidate_batch = str(
-                    session.get("generation_batch_id")
-                    or (session.get("metadata", {}) if isinstance(session.get("metadata"), dict) else {}).get("generation_batch_id")
-                    or ""
-                ).strip()
-                if candidate_batch and candidate_batch == batch_id:
-                    sessions_for_batch.append(session)
-
-            if not sessions_for_batch:
-                if str(batch_id).startswith("session-"):
+            sessions_for_batch = (
+                LottoDBHelper.get_generation_sessions_by_batch_id(batch_id)
+                if hasattr(LottoDBHelper, "get_generation_sessions_by_batch_id")
+                else []
+            )
+            if (not sessions_for_batch) and hasattr(LottoDBHelper, "get_all_generation_history"):
+                all_sessions_fallback = LottoDBHelper.get_all_generation_history(
+                    max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT
+                )
+                for session in all_sessions_fallback:
+                    if not isinstance(session, dict):
+                        continue
+                    candidate_batch = str(
+                        session.get("generation_batch_id")
+                        or (session.get("metadata", {}) if isinstance(session.get("metadata"), dict) else {}).get("generation_batch_id")
+                        or ""
+                    ).strip()
+                    if candidate_batch and candidate_batch == batch_id:
+                        sessions_for_batch.append(session)
+                if not sessions_for_batch and str(batch_id).startswith("session-"):
                     try:
                         fallback_id = int(str(batch_id).replace("session-", ""))
                     except Exception:
                         fallback_id = session_id
-                    sessions_for_batch = [s for s in all_sessions if int(s.get("id", 0) or 0) == fallback_id]
+                    sessions_for_batch = [s for s in all_sessions_fallback if int(s.get("id", 0) or 0) == fallback_id]
 
             if not sessions_for_batch:
                 sessions_for_batch = [selected_session]
@@ -858,8 +880,16 @@ class GeneratedSetsWidget(QWidget):
                 QMessageBox.warning(self, "Export Warning", "Invalid session id for selected row.")
                 return
 
-            all_sessions = LottoDBHelper.get_all_generation_history() if hasattr(LottoDBHelper, "get_all_generation_history") else []
-            session_payload = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
+            session_payload = (
+                LottoDBHelper.get_generation_session_by_id(session_id)
+                if hasattr(LottoDBHelper, "get_generation_session_by_id")
+                else None
+            )
+            if not isinstance(session_payload, dict) and hasattr(LottoDBHelper, "get_all_generation_history"):
+                all_sessions = LottoDBHelper.get_all_generation_history(
+                    max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT
+                )
+                session_payload = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
             if not isinstance(session_payload, dict):
                 QMessageBox.warning(self, "Export Warning", "Could not find selected session payload.")
                 return

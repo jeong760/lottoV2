@@ -264,3 +264,98 @@ def test_generation_batch_history_groups_sessions(monkeypatch, tmp_path):
     assert fallback_row is not None
     assert fallback_row.get("is_fallback_batch") is True
     assert fallback_row.get("session_count") == 1
+
+
+def test_generation_history_max_sessions_scope(monkeypatch, tmp_path):
+    tmp_db_path = tmp_path / "phase_j_generation_history_limit.db"
+    monkeypatch.setattr(
+        LottoDBHelper,
+        "_get_db_path",
+        staticmethod(lambda: str(tmp_db_path)),
+    )
+
+    for idx in range(1, 4):
+        LottoDBHelper.save_generation_history(
+            set_count=1,
+            generated_sets=[[idx, idx + 5, idx + 10, idx + 15, idx + 20, idx + 25, 7]],
+            metadata={
+                "algorithm_id": f"phase_j_{idx}",
+                "algorithm_title": f"Phase J Algo {idx}",
+                "generation_batch_id": f"phase-j-batch-{idx}",
+            },
+        )
+
+    sessions_all = LottoDBHelper.load_generation_history()
+    sessions_limited = LottoDBHelper.load_generation_history(max_sessions=2)
+
+    assert len(sessions_all) == 3
+    assert len(sessions_limited) == 2
+    assert sessions_limited[0]["metadata"].get("algorithm_title") == "Phase J Algo 3"
+    assert sessions_limited[1]["metadata"].get("algorithm_title") == "Phase J Algo 2"
+
+    flat_limited = LottoDBHelper.get_generation_history(max_sessions=2)
+    assert len(flat_limited) == 2
+    assert flat_limited[0].get("algorithm_title") == "Phase J Algo 3"
+    assert flat_limited[1].get("algorithm_title") == "Phase J Algo 2"
+
+
+def test_generation_history_fast_lookup_helpers(monkeypatch, tmp_path):
+    tmp_db_path = tmp_path / "phase_j_generation_history_lookup.db"
+    monkeypatch.setattr(
+        LottoDBHelper,
+        "_get_db_path",
+        staticmethod(lambda: str(tmp_db_path)),
+    )
+
+    batch_id = "phase-j-batch-lookup"
+    LottoDBHelper.save_generation_history(
+        set_count=1,
+        generated_sets=[[4, 9, 14, 19, 24, 29, 1]],
+        metadata={
+            "algorithm_id": "phase_j_lookup_a",
+            "algorithm_title": "Phase J Lookup A",
+            "generation_batch_id": batch_id,
+        },
+    )
+    LottoDBHelper.save_generation_history(
+        set_count=1,
+        generated_sets=[[5, 10, 15, 20, 25, 30, 2]],
+        metadata={
+            "algorithm_id": "phase_j_lookup_b",
+            "algorithm_title": "Phase J Lookup B",
+            "generation_batch_id": batch_id,
+        },
+    )
+    LottoDBHelper.save_generation_history(
+        set_count=1,
+        generated_sets=[[6, 11, 16, 21, 26, 31, 3]],
+        metadata={
+            "algorithm_id": "phase_j_lookup_c",
+            "algorithm_title": "Phase J Lookup C",
+        },
+    )
+
+    all_history = LottoDBHelper.get_all_generation_history()
+    title_to_id = {row.get("algorithm_title"): int(row.get("id", 0) or 0) for row in all_history}
+    target_id = title_to_id.get("Phase J Lookup B", 0)
+    assert target_id > 0
+
+    single_session = LottoDBHelper.get_generation_session_by_id(target_id)
+    assert isinstance(single_session, dict)
+    assert single_session.get("id") == target_id
+    assert single_session.get("algorithm_title") == "Phase J Lookup B"
+
+    scoped_sessions = LottoDBHelper.load_generation_history(session_ids=[target_id])
+    assert len(scoped_sessions) == 1
+    assert scoped_sessions[0].get("session_id") == target_id
+
+    by_batch = LottoDBHelper.get_generation_sessions_by_batch_id(batch_id)
+    assert isinstance(by_batch, list)
+    assert len(by_batch) == 2
+    batch_titles = {row.get("algorithm_title") for row in by_batch}
+    assert "Phase J Lookup A" in batch_titles
+    assert "Phase J Lookup B" in batch_titles
+
+    fallback_single = LottoDBHelper.get_generation_sessions_by_batch_id(f"session-{target_id}")
+    assert len(fallback_single) == 1
+    assert int(fallback_single[0].get("id", 0) or 0) == target_id
