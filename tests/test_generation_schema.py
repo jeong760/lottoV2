@@ -8,8 +8,10 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core.generation_schema import (
+    build_frequency_map_from_history,
     build_generation_metadata,
     build_generation_stats,
+    build_top_ranked_combinations,
     resolve_total_algorithms_active,
 )
 
@@ -52,3 +54,35 @@ def test_build_generation_metadata_schema():
         assert key in metadata
     assert metadata["total_algorithms_active"] == 451
     assert metadata["discarded_count"] == 120
+
+
+def test_build_top_ranked_combinations_schema_and_limit():
+    history = [[1, 8, 15, 23, 34, 42], [2, 9, 16, 24, 35, 43], [3, 10, 17, 25, 36, 44]]
+    frequency_map = build_frequency_map_from_history(history, lookback=50)
+
+    scored_candidates = []
+    for i in range(70):
+        base = (i % 45) + 1
+        numbers = sorted({((base + (j * 6)) % 45) + 1 for j in range(6)})
+        if len(numbers) < 6:
+            numbers = [1, 8, 15, 23, 34, 42]
+        scored_candidates.append((99.0 - (i * 0.5), numbers[:6]))
+
+    ranked = build_top_ranked_combinations(scored_candidates, limit=50, frequency_map=frequency_map)
+    assert len(ranked) == 50
+
+    required_fields = {
+        "rank",
+        "numbers",
+        "confidence_score",
+        "probability_score",
+        "pattern_score",
+        "ai_score",
+        "genetic_score",
+        "ensemble_score",
+    }
+    for item in ranked:
+        assert required_fields.issubset(set(item.keys()))
+        assert isinstance(item["numbers"], list) and len(item["numbers"]) == 6
+        for score_key in ("confidence_score", "probability_score", "pattern_score", "ai_score", "genetic_score", "ensemble_score"):
+            assert 0.0 <= float(item[score_key]) <= 100.0

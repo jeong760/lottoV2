@@ -270,13 +270,30 @@ class LottoEvaluator:
         if test_window_size and isinstance(test_window_size, int) and test_window_size > 0:
             test_draws = test_draws[-test_window_size:]
 
+        def _safe_pct(part: float, total: float) -> float:
+            return round((float(part) / float(total)) * 100.0, 4) if total > 0 else 0.0
+
+        def _classification_metrics(tp: int, fp: int, fn: int) -> Tuple[float, float, float]:
+            precision = (float(tp) / float(tp + fp)) if (tp + fp) > 0 else 0.0
+            recall = (float(tp) / float(tp + fn)) if (tp + fn) > 0 else 0.0
+            f1 = (2.0 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
+            return round(precision * 100.0, 4), round(recall * 100.0, 4), round(f1 * 100.0, 4)
+
         algo_cost = 0
         algo_prize = 0
         algo_ranks = {"1st": 0, "2nd (5+B)": 0, "3rd (5 Matches)": 0, "4th": 0, "5th": 0, "-": 0}
+        algo_match_distribution = {i: 0 for i in range(7)}
+        algo_tp = 0
+        algo_fp = 0
+        algo_fn = 0
 
         rand_cost = 0
         rand_prize = 0
         rand_ranks = {"1st": 0, "2nd (5+B)": 0, "3rd (5 Matches)": 0, "4th": 0, "5th": 0, "-": 0}
+        rand_match_distribution = {i: 0 for i in range(7)}
+        rand_tp = 0
+        rand_fp = 0
+        rand_fn = 0
 
         for draw in test_draws:
             raw_winning = draw.get("numbers", [])
@@ -315,14 +332,19 @@ class LottoEvaluator:
                     generated_sets.append(sorted(random.sample(range(1, 46), 6)))
 
             # Evaluate algorithm sets
+            algo_predicted_union = set()
             for s in generated_sets:
                 try:
                     s_set = set(int(n) for n in s[:6])
                 except (ValueError, TypeError):
                     continue
+                if len(s_set) < 6:
+                    continue
+                algo_predicted_union.update(s_set)
                 
                 matches = len(s_set.intersection(winning_nums))
                 has_bonus = (winning_bonus in s_set)
+                algo_match_distribution[matches] = algo_match_distribution.get(matches, 0) + 1
 
                 prize = LottoEvaluator.calculate_prize_money(matches, has_bonus)
                 rank_str = LottoEvaluator.get_rank_label(matches, has_bonus)
@@ -333,12 +355,18 @@ class LottoEvaluator:
                     algo_ranks[rank_str] += 1
                 else:
                     algo_ranks["-"] += 1
+            algo_tp += len(algo_predicted_union.intersection(winning_nums))
+            algo_fp += len(algo_predicted_union.difference(winning_nums))
+            algo_fn += len(winning_nums.difference(algo_predicted_union))
 
             # Evaluate random baseline sets
+            rand_predicted_union = set()
             for _ in range(set_count):
                 rand_s = set(random.sample(range(1, 46), 6))
+                rand_predicted_union.update(rand_s)
                 matches = len(rand_s.intersection(winning_nums))
                 has_bonus = (winning_bonus in rand_s)
+                rand_match_distribution[matches] = rand_match_distribution.get(matches, 0) + 1
 
                 prize = LottoEvaluator.calculate_prize_money(matches, has_bonus)
                 rank_str = LottoEvaluator.get_rank_label(matches, has_bonus)
@@ -349,9 +377,55 @@ class LottoEvaluator:
                     rand_ranks[rank_str] += 1
                 else:
                     rand_ranks["-"] += 1
+            rand_tp += len(rand_predicted_union.intersection(winning_nums))
+            rand_fp += len(rand_predicted_union.difference(winning_nums))
+            rand_fn += len(winning_nums.difference(rand_predicted_union))
 
         algo_roi = (algo_prize / algo_cost) * 100 if algo_cost > 0 else 0.0
         rand_roi = (rand_prize / rand_cost) * 100 if rand_cost > 0 else 0.0
+        algo_ticket_count = sum(algo_match_distribution.values())
+        rand_ticket_count = sum(rand_match_distribution.values())
+
+        algo_precision, algo_recall, algo_f1 = _classification_metrics(algo_tp, algo_fp, algo_fn)
+        rand_precision, rand_recall, rand_f1 = _classification_metrics(rand_tp, rand_fp, rand_fn)
+
+        algo_metrics = {
+            "ticket_count": int(algo_ticket_count),
+            "hit_rate": _safe_pct(
+                algo_match_distribution.get(3, 0)
+                + algo_match_distribution.get(4, 0)
+                + algo_match_distribution.get(5, 0)
+                + algo_match_distribution.get(6, 0),
+                algo_ticket_count,
+            ),
+            "match_3_rate": _safe_pct(algo_match_distribution.get(3, 0), algo_ticket_count),
+            "match_4_rate": _safe_pct(algo_match_distribution.get(4, 0), algo_ticket_count),
+            "match_5_rate": _safe_pct(algo_match_distribution.get(5, 0), algo_ticket_count),
+            "match_6_rate": _safe_pct(algo_match_distribution.get(6, 0), algo_ticket_count),
+            "precision": algo_precision,
+            "recall": algo_recall,
+            "f1_score": algo_f1,
+            "roi": round(algo_roi, 2),
+        }
+
+        rand_metrics = {
+            "ticket_count": int(rand_ticket_count),
+            "hit_rate": _safe_pct(
+                rand_match_distribution.get(3, 0)
+                + rand_match_distribution.get(4, 0)
+                + rand_match_distribution.get(5, 0)
+                + rand_match_distribution.get(6, 0),
+                rand_ticket_count,
+            ),
+            "match_3_rate": _safe_pct(rand_match_distribution.get(3, 0), rand_ticket_count),
+            "match_4_rate": _safe_pct(rand_match_distribution.get(4, 0), rand_ticket_count),
+            "match_5_rate": _safe_pct(rand_match_distribution.get(5, 0), rand_ticket_count),
+            "match_6_rate": _safe_pct(rand_match_distribution.get(6, 0), rand_ticket_count),
+            "precision": rand_precision,
+            "recall": rand_recall,
+            "f1_score": rand_f1,
+            "roi": round(rand_roi, 2),
+        }
 
         return {
             "status": "success",
@@ -363,13 +437,33 @@ class LottoEvaluator:
                 "total_cost": algo_cost,
                 "total_prize": algo_prize,
                 "roi": round(algo_roi, 2),
-                "ranks": algo_ranks
+                "ranks": algo_ranks,
+                "match_distribution": algo_match_distribution,
+                "metrics": algo_metrics,
+                "hit_rate": algo_metrics["hit_rate"],
+                "match_3_rate": algo_metrics["match_3_rate"],
+                "match_4_rate": algo_metrics["match_4_rate"],
+                "match_5_rate": algo_metrics["match_5_rate"],
+                "match_6_rate": algo_metrics["match_6_rate"],
+                "precision": algo_metrics["precision"],
+                "recall": algo_metrics["recall"],
+                "f1_score": algo_metrics["f1_score"],
             },
             "random_baseline": {
                 "total_cost": rand_cost,
                 "total_prize": rand_prize,
                 "roi": round(rand_roi, 2),
-                "ranks": rand_ranks
+                "ranks": rand_ranks,
+                "match_distribution": rand_match_distribution,
+                "metrics": rand_metrics,
+                "hit_rate": rand_metrics["hit_rate"],
+                "match_3_rate": rand_metrics["match_3_rate"],
+                "match_4_rate": rand_metrics["match_4_rate"],
+                "match_5_rate": rand_metrics["match_5_rate"],
+                "match_6_rate": rand_metrics["match_6_rate"],
+                "precision": rand_metrics["precision"],
+                "recall": rand_metrics["recall"],
+                "f1_score": rand_metrics["f1_score"],
             }
         }
 

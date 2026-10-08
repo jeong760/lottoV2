@@ -140,12 +140,46 @@ class BacktestWidget(QWidget):
                 self.log_box.append(f" - Total Prize: {algo.get('total_prize', 0):,} KRW")
                 self.log_box.append(f" - Return on Investment (ROI): {algo.get('roi', 0.0)}%")
                 self.log_box.append(f" - Ranks Breakdown: {algo.get('ranks', {})}")
+                algo_metrics = algo.get("metrics", {})
+                if isinstance(algo_metrics, dict):
+                    self.log_box.append(
+                        " - Hit/Match Rates: "
+                        f"Hit={algo_metrics.get('hit_rate', 0.0)}% | "
+                        f"M3={algo_metrics.get('match_3_rate', 0.0)}% | "
+                        f"M4={algo_metrics.get('match_4_rate', 0.0)}% | "
+                        f"M5={algo_metrics.get('match_5_rate', 0.0)}% | "
+                        f"M6={algo_metrics.get('match_6_rate', 0.0)}%"
+                    )
+                    self.log_box.append(
+                        " - Classification Metrics: "
+                        f"Precision={algo_metrics.get('precision', 0.0)}% | "
+                        f"Recall={algo_metrics.get('recall', 0.0)}% | "
+                        f"F1={algo_metrics.get('f1_score', 0.0)}% | "
+                        f"Tickets={algo_metrics.get('ticket_count', 0)}"
+                    )
 
                 self.log_box.append(f"\n[Random Baseline Comparison]")
                 self.log_box.append(f" - Total Cost: {rand.get('total_cost', 0):,} KRW")
                 self.log_box.append(f" - Total Prize: {rand.get('total_prize', 0):,} KRW")
                 self.log_box.append(f" - Return on Investment (ROI): {rand.get('roi', 0.0)}%")
                 self.log_box.append(f" - Ranks Breakdown: {rand.get('ranks', {})}")
+                rand_metrics = rand.get("metrics", {})
+                if isinstance(rand_metrics, dict):
+                    self.log_box.append(
+                        " - Hit/Match Rates: "
+                        f"Hit={rand_metrics.get('hit_rate', 0.0)}% | "
+                        f"M3={rand_metrics.get('match_3_rate', 0.0)}% | "
+                        f"M4={rand_metrics.get('match_4_rate', 0.0)}% | "
+                        f"M5={rand_metrics.get('match_5_rate', 0.0)}% | "
+                        f"M6={rand_metrics.get('match_6_rate', 0.0)}%"
+                    )
+                    self.log_box.append(
+                        " - Classification Metrics: "
+                        f"Precision={rand_metrics.get('precision', 0.0)}% | "
+                        f"Recall={rand_metrics.get('recall', 0.0)}% | "
+                        f"F1={rand_metrics.get('f1_score', 0.0)}% | "
+                        f"Tickets={rand_metrics.get('ticket_count', 0)}"
+                    )
                 self.log_box.append(f"\n==================================================")
                 _log.info("Backtest results successfully rendered on UI dashboard.")
             else:

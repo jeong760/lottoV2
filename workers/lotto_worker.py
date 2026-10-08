@@ -24,8 +24,10 @@ from data.repositories.lotto_repository import LottoRepository
 from utils.audit_security import AuditTrailSecurity
 from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
 from core.generation_schema import (
+    build_frequency_map_from_history,
     build_generation_metadata,
     build_generation_stats,
+    build_top_ranked_combinations,
     resolve_total_algorithms_active,
 )
 from core.quality_gate import calculate_ac_value, passes_quality_gate
@@ -135,6 +137,7 @@ class LottoWorker(QThread):
             latest_draw_nums = self._get_latest_draw_numbers()
 
             prediction_sets = []
+            prediction_sets_snapshot = []
             strategy_title = self.algorithm_title
             strategy_sources = []
             strategy_scores = []
@@ -147,6 +150,7 @@ class LottoWorker(QThread):
                         fixed_numbers=self.fixed_numbers, 
                         excluded_numbers=self.excluded_numbers
                     ) or []
+                    prediction_sets_snapshot = list(prediction_sets)
                     for pred in prediction_sets:
                         if not isinstance(pred, dict):
                             continue
@@ -239,6 +243,27 @@ class LottoWorker(QThread):
                 if strategy_scores
                 else (94.2 if self.ai_weights else 90.5)
             )
+            raw_history = getattr(getattr(self.engine, "engine", self.engine), "historical_draws", [])
+            frequency_map = build_frequency_map_from_history(raw_history, lookback=120)
+            ranked_candidates = []
+            for pred in prediction_sets_snapshot:
+                if not isinstance(pred, dict):
+                    continue
+                pred_numbers = pred.get("numbers", [])
+                try:
+                    pred_score = float(pred.get("score", confidence_score))
+                except (TypeError, ValueError):
+                    pred_score = float(confidence_score)
+                ranked_candidates.append((pred_score, pred_numbers))
+
+            if not ranked_candidates:
+                ranked_candidates = [(float(confidence_score), nums) for nums in all_generated_sets]
+
+            top_ranked_combinations = build_top_ranked_combinations(
+                ranked_candidates,
+                limit=50,
+                frequency_map=frequency_map,
+            )
             total_algorithms_active = resolve_total_algorithms_active(self.engine, default=0)
             if total_algorithms_active <= 0:
                 total_algorithms_active = max(1, len(strategy_sources) + 1)
@@ -258,6 +283,7 @@ class LottoWorker(QThread):
                     "Quality Gate Filtering Engine",
                     "AI Neural Weight Ensembler" if self.ai_weights else "Statistical Matrix Evaluator",
                 ],
+                extras={"top_ranked_combinations": top_ranked_combinations},
             )
 
             try:

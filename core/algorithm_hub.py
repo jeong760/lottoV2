@@ -9,8 +9,10 @@ from typing import List, Dict, Any, Tuple
 import numpy as np
 from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
 from core.generation_schema import (
+    build_frequency_map_from_history,
     build_generation_metadata,
     build_generation_stats,
+    build_top_ranked_combinations,
     resolve_total_algorithms_active,
 )
 
@@ -420,6 +422,15 @@ class AlgorithmHub:
                 scored_pool.append((score, s_nums))
 
             scored_pool.sort(key=lambda x: x[0], reverse=True)
+            frequency_map = build_frequency_map_from_history(
+                getattr(self.engine, "historical_draws", []) if self.engine else [],
+                lookback=120,
+            )
+            top_ranked_combinations = build_top_ranked_combinations(
+                scored_pool,
+                limit=50,
+                frequency_map=frequency_map,
+            )
             generated_sets = [item[1] for item in scored_pool[:target_count]]
 
             while len(generated_sets) < target_count:
@@ -446,6 +457,7 @@ class AlgorithmHub:
                     "Markov Transition Engine",
                     "Monte Carlo Validator",
                 ],
+                extras={"top_ranked_combinations": top_ranked_combinations},
             )
 
             return generated_sets, discards, stats, metadata
@@ -454,6 +466,8 @@ class AlgorithmHub:
             _log.critical(f"[CRITICAL DEBUG] AlgorithmHub generate_premium_numbers error: {e}\n{traceback.format_exc()}")
             fallback_sets = [sorted(random.sample(range(1, 46), 6)) for _ in range(int(set_count))]
             fallback_stats = build_generation_stats(fallback_sets[0], 75.0, 12)
+            fallback_scored = [(65.0 - idx * 0.5, nums) for idx, nums in enumerate(fallback_sets)]
+            fallback_top_ranked = build_top_ranked_combinations(fallback_scored, limit=50)
             fallback_metadata = build_generation_metadata(
                 algorithm_id="ensemble_auto",
                 algorithm_title="Fallback Engine",
@@ -461,6 +475,7 @@ class AlgorithmHub:
                 confidence_score=75.0,
                 round_info="Fallback",
                 leading_algorithms=["Fallback Random Generator"],
+                extras={"top_ranked_combinations": fallback_top_ranked},
             )
             return fallback_sets, [1, 2, 4, 8, 15, 20], fallback_stats, fallback_metadata
 
