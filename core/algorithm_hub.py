@@ -8,6 +8,11 @@ import traceback
 from typing import List, Dict, Any, Tuple
 import numpy as np
 from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
+from core.generation_schema import (
+    build_generation_metadata,
+    build_generation_stats,
+    resolve_total_algorithms_active,
+)
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -375,7 +380,8 @@ class AlgorithmHub:
             
             extracted_candidates = []
             confidence = round(float(random.uniform(88.0, 97.5)), 2)
-            contributors = random.randint(30, 50)
+            total_algorithms_active = resolve_total_algorithms_active(self.engine, default=0)
+            contributors = max(1, int(total_algorithms_active * 0.25)) if total_algorithms_active > 0 else random.randint(30, 50)
             
             if prediction_sets:
                 for pred in prediction_sets:
@@ -426,38 +432,37 @@ class AlgorithmHub:
             selected_set = set(primary_numbers)
             discards = sorted(list(all_nums - selected_set))[:6]
 
-            ac_val = self._calculate_ac_value(primary_numbers)
+            stats = build_generation_stats(primary_numbers, confidence, contributors)
 
-            stats = {
-                "sum": int(sum(primary_numbers)),
-                "odd_count": int(sum(1 for num in primary_numbers if int(num) % 2 != 0)),
-                "even_count": int(sum(1 for num in primary_numbers if int(num) % 2 == 0)),
-                "high_count": int(sum(1 for num in primary_numbers if int(num) >= 23)),
-                "low_count": int(sum(1 for num in primary_numbers if int(num) < 23)),
-                "ac_value": int(ac_val),
-                "confidence": float(confidence),
-                "contributors": int(contributors)
-            }
-
-            metadata = {
-                "algorithm_id": resolved_algorithm_id,
-                "algorithm_title": get_mode_title(resolved_algorithm_id),
-                "total_algorithms_active": 500,
-                "confidence_score": float(confidence),
-                "leading_algorithms": ["Genetic Evolution Optimizer", "K-Means Cluster Diversifier"]
-            }
+            metadata = build_generation_metadata(
+                algorithm_id=resolved_algorithm_id,
+                algorithm_title=get_mode_title(resolved_algorithm_id),
+                total_algorithms_active=max(1, total_algorithms_active or int(contributors)),
+                confidence_score=float(confidence),
+                round_info="Live Draw",
+                leading_algorithms=[
+                    "Registry Strategy Router",
+                    "Quality Gate Filtering Engine",
+                    "Markov Transition Engine",
+                    "Monte Carlo Validator",
+                ],
+            )
 
             return generated_sets, discards, stats, metadata
 
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] AlgorithmHub generate_premium_numbers error: {e}\n{traceback.format_exc()}")
             fallback_sets = [sorted(random.sample(range(1, 46), 6)) for _ in range(int(set_count))]
-            fallback_stats = {
-                "sum": sum(fallback_sets[0]), "odd_count": 3, "even_count": 3, 
-                "high_count": 3, "low_count": 3, "ac_value": 7, 
-                "confidence": 75.0, "contributors": 12
-            }
-            return fallback_sets, [1, 2, 4, 8, 15, 20], fallback_stats, {"algorithm_title": "Fallback Engine", "total_algorithms_active": 500, "confidence_score": 75.0}
+            fallback_stats = build_generation_stats(fallback_sets[0], 75.0, 12)
+            fallback_metadata = build_generation_metadata(
+                algorithm_id="ensemble_auto",
+                algorithm_title="Fallback Engine",
+                total_algorithms_active=12,
+                confidence_score=75.0,
+                round_info="Fallback",
+                leading_algorithms=["Fallback Random Generator"],
+            )
+            return fallback_sets, [1, 2, 4, 8, 15, 20], fallback_stats, fallback_metadata
 
     def get_audit_report(self) -> Dict[str, Any]:
         if self.engine and hasattr(self.engine, "build_audit_snapshot"):

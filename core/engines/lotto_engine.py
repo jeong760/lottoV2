@@ -34,6 +34,7 @@ from core.algorithm_catalog import (
 )
 from core.engines.markov_transition_engine import MarkovTransitionEngine
 from core.engines.monte_carlo_validator import MonteCarloValidator
+from core.quality_gate import calculate_ac_value, passes_quality_gate
 
 
 class LottoEngine:
@@ -402,63 +403,27 @@ class LottoEngine:
 
     def _calculate_ac_value(self, numbers: list) -> int:
         """Calculates Arithmetic Complexity (AC value) for a 6-number set."""
-        diffs = set()
-        n = len(numbers)
-        for i in range(n):
-            for j in range(i + 1, n):
-                diffs.add(abs(int(numbers[i]) - int(numbers[j])))
-        return max(0, len(diffs) - (n - 1))
+        return int(calculate_ac_value(numbers))
 
     def _passes_quality_gate(self, raw_set: list, relaxed: bool = False) -> bool:
         """
         Quality Gate Filter: Enforces rigorous statistical bounds (Sum, Odd/Even, High/Low, AC value, Span,
         Decade Spacing, and Latest Draw Overlap Penalty) without falling into gambler's fallacy.
         """
-        if not isinstance(raw_set, list) or len(raw_set) != 6:
-            return False
-
-        # 1. Sum range validation
-        total_sum = sum(raw_set)
-        if not (SUM_MIN <= total_sum <= SUM_MAX):
-            if not relaxed:
-                return False
-
-        # 2. Odd/Even balance (disallow extreme 6:0 or 0:6)
-        odd_count = sum(1 for n in raw_set if int(n) % 2 != 0)
-        if odd_count == 0 or odd_count == 6:
-            if not relaxed:
-                return False
-
-        # 3. High/Low balance (1~22 vs 23~45)
-        high_count = sum(1 for n in raw_set if int(n) >= 23)
-        if high_count == 0 or high_count == 6:
-            if not relaxed:
-                return False
-
-        # 4. AC Value complexity check (AC >= 4)
-        if self._calculate_ac_value(raw_set) < (3 if relaxed else 4):
-            if not relaxed:
-                return False
-
-        # 5. Span check (difference between max and min should be reasonable, e.g., >= 15)
-        if (max(raw_set) - min(raw_set)) < (12 if relaxed else 15):
-            if not relaxed:
-                return False
-
-        # 6. Decade Spacing Constraint: Ensure numbers span across at least 3 decades
-        decades = {(int(n) - 1) // 10 for n in raw_set}
-        if len(decades) < (2 if relaxed else 3):
-            if not relaxed:
-                return False
-
-        # 7. Overlap Penalty: Restrict overlap with the latest draw to at most 3
-        if self.historical_draws and not relaxed:
-            latest_draw_nums = self.historical_draws[-1]
-            overlap_count = len(set(raw_set).intersection(set(latest_draw_nums)))
-            if overlap_count > 3:
-                return False
-
-        return True
+        latest_draw_nums = self.historical_draws[-1] if self.historical_draws else None
+        return passes_quality_gate(
+            raw_set,
+            latest_draw_numbers=latest_draw_nums,
+            strict=not bool(relaxed),
+            sum_min=SUM_MIN,
+            sum_max=SUM_MAX,
+            high_low_cutoff=23,
+            min_ac_value=4,
+            min_span=15,
+            min_decades=3,
+            max_overlap_with_latest=3,
+            max_consecutive_run=None,
+        )
 
     def _normalize_numbers(self, numbers: Any) -> List[int]:
         if not isinstance(numbers, (list, tuple, set)):

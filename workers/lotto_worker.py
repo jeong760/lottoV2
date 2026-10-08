@@ -23,6 +23,12 @@ from config import SUM_MIN, SUM_MAX
 from data.repositories.lotto_repository import LottoRepository
 from utils.audit_security import AuditTrailSecurity
 from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
+from core.generation_schema import (
+    build_generation_metadata,
+    build_generation_stats,
+    resolve_total_algorithms_active,
+)
+from core.quality_gate import calculate_ac_value, passes_quality_gate
 
 _log = logging.getLogger("LottoTurbineWorker")
 
@@ -98,58 +104,23 @@ class LottoWorker(QThread):
         return []
 
     def _calculate_ac_value(self, numbers: list) -> int:
-        try:
-            diffs = set()
-            n = len(numbers)
-            for i in range(n):
-                for j in range(i + 1, n):
-                    diffs.add(abs(numbers[i] - numbers[j]))
-            return max(0, len(diffs) - (n - 1))
-        except Exception:
-            return 7
+        return int(calculate_ac_value(numbers))
 
     def _passes_quality_gate(self, raw_set: list, latest_draw_nums: list) -> bool:
         try:
-            if not isinstance(raw_set, list) or len(raw_set) != 6:
-                return False
-
-            total_sum = sum(raw_set)
-            if not (SUM_MIN <= total_sum <= SUM_MAX):
-                return False
-
-            odd_count = sum(1 for n in raw_set if n % 2 != 0)
-            if odd_count == 0 or odd_count == 6:
-                return False
-
-            high_count = sum(1 for n in raw_set if n >= 23)
-            if high_count == 0 or high_count == 6:
-                return False
-
-            ac = self._calculate_ac_value(raw_set)
-            if ac < 4:
-                return False
-
-            consecutive_streak = 1
-            max_consecutive = 1
-            for i in range(len(raw_set) - 1):
-                if raw_set[i+1] == raw_set[i] + 1:
-                    consecutive_streak += 1
-                    max_consecutive = max(max_consecutive, consecutive_streak)
-                else:
-                    consecutive_streak = 1
-            if max_consecutive > 3:
-                return False
-
-            decades = {(n - 1) // 10 for n in raw_set}
-            if len(decades) < 3:
-                return False
-
-            if latest_draw_nums:
-                overlap_count = len(set(raw_set).intersection(set(latest_draw_nums)))
-                if overlap_count > 2:
-                    return False
-
-            return True
+            return passes_quality_gate(
+                raw_set,
+                latest_draw_numbers=latest_draw_nums,
+                strict=True,
+                sum_min=SUM_MIN,
+                sum_max=SUM_MAX,
+                high_low_cutoff=23,
+                min_ac_value=4,
+                min_span=None,
+                min_decades=3,
+                max_overlap_with_latest=2,
+                max_consecutive_run=3,
+            )
         except Exception as e:
             _log.warning(f"Error in _passes_quality_gate: {e}", exc_info=True)
             return True  # 예외 시 통과시켜 크래시 방지
@@ -166,6 +137,8 @@ class LottoWorker(QThread):
             prediction_sets = []
             strategy_title = self.algorithm_title
             strategy_sources = []
+            strategy_scores = []
+            contributor_hint = 0
             if self.engine and hasattr(self.engine, "generate_prediction_sets"):
                 try:
                     prediction_sets = self.engine.generate_prediction_sets(
@@ -183,6 +156,18 @@ class LottoWorker(QThread):
                         pred_source = pred.get("source")
                         if pred_source and pred_source not in strategy_sources:
                             strategy_sources.append(str(pred_source))
+                        pred_score = pred.get("score")
+                        if pred_score is not None:
+                            try:
+                                strategy_scores.append(float(pred_score))
+                            except (TypeError, ValueError):
+                                pass
+                        pred_contributors = pred.get("contributing_algorithms")
+                        if pred_contributors is not None:
+                            try:
+                                contributor_hint = max(contributor_hint, int(pred_contributors))
+                            except (TypeError, ValueError):
+                                pass
                 except Exception as ex:
                     _log.warning(f"Engine generation fallback triggered: {ex}", exc_info=True)
 
@@ -249,32 +234,31 @@ class LottoWorker(QThread):
             primary_numbers = all_generated_sets[0] if all_generated_sets else [3, 12, 24, 27, 35, 42]
             all_nums = set(range(1, 46))
             discards = sorted(list(all_nums - set(primary_numbers)))[:6]
+            confidence_score = (
+                round(float(sum(strategy_scores) / len(strategy_scores)), 2)
+                if strategy_scores
+                else (94.2 if self.ai_weights else 90.5)
+            )
+            total_algorithms_active = resolve_total_algorithms_active(self.engine, default=0)
+            if total_algorithms_active <= 0:
+                total_algorithms_active = max(1, len(strategy_sources) + 1)
+            contributors = max(1, contributor_hint or total_algorithms_active)
 
-            stats = {
-                "sum": sum(primary_numbers),
-                "odd_count": sum(1 for n in primary_numbers if n % 2 != 0),
-                "even_count": sum(1 for n in primary_numbers if n % 2 == 0),
-                "high_count": sum(1 for n in primary_numbers if n >= 23),
-                "low_count": sum(1 for n in primary_numbers if n < 23),
-                "ac_value": self._calculate_ac_value(primary_numbers),
-                "confidence": 94.2 if self.ai_weights else 90.5,
-                "contributors": 500
-            }
-
-            metadata = {
-                "algorithm_id": self.algorithm_id,
-                "algorithm_title": strategy_title,
-                "round_info": "Live Draw",
-                "total_algorithms_active": 500,
-                "confidence_score": 94.2 if self.ai_weights else 90.5,
-                "discarded_count": discarded_total,
-                "leading_algorithms": [
+            stats = build_generation_stats(primary_numbers, confidence_score, contributors)
+            metadata = build_generation_metadata(
+                algorithm_id=self.algorithm_id,
+                algorithm_title=strategy_title,
+                total_algorithms_active=total_algorithms_active,
+                confidence_score=confidence_score,
+                round_info="Live Draw",
+                discarded_count=discarded_total,
+                leading_algorithms=[
                     strategy_title,
                     *strategy_sources[:2],
                     "Quality Gate Filtering Engine",
-                    "AI Neural Weight Ensembler" if self.ai_weights else "Statistical Matrix Evaluator"
-                ]
-            }
+                    "AI Neural Weight Ensembler" if self.ai_weights else "Statistical Matrix Evaluator",
+                ],
+            )
 
             try:
                 LottoRepository.save_generation_history(self.set_count, full_sets_for_db, metadata)
