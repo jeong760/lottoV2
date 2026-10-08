@@ -200,3 +200,67 @@ def test_generation_history_batch_id_column_fallback(monkeypatch, tmp_path):
     all_history = LottoDBHelper.get_all_generation_history()
     assert all_history
     assert all_history[0].get("generation_batch_id") == batch_id
+
+
+def test_generation_batch_history_groups_sessions(monkeypatch, tmp_path):
+    tmp_db_path = tmp_path / "phase_h_generation_history.db"
+    monkeypatch.setattr(
+        LottoDBHelper,
+        "_get_db_path",
+        staticmethod(lambda: str(tmp_db_path)),
+    )
+
+    batch_id = "phase-h-batch-001"
+    rich_metadata = {
+        "algorithm_id": "ensemble_auto",
+        "algorithm_title": "Phase H Ensemble",
+        "generation_batch_id": batch_id,
+        "score_weight_profile": {"probability": 0.31, "pattern": 0.22, "ai": 0.25, "genetic": 0.22},
+        "top_ranked_combinations": [
+            {"rank": 1, "numbers": [2, 8, 15, 24, 33, 41], "confidence_score": 94.1}
+        ],
+    }
+    lean_metadata = {
+        "algorithm_id": "ensemble_auto",
+        "algorithm_title": "Phase H Ensemble",
+        "generation_batch_id": batch_id,
+    }
+    fallback_metadata = {
+        "algorithm_id": "single_session_mode",
+        "algorithm_title": "Fallback Session",
+    }
+
+    LottoDBHelper.save_generation_history(
+        set_count=1,
+        generated_sets=[[2, 8, 15, 24, 33, 41, 9]],
+        metadata=rich_metadata,
+    )
+    LottoDBHelper.save_generation_history(
+        set_count=1,
+        generated_sets=[[1, 10, 16, 25, 34, 42, 7]],
+        metadata=lean_metadata,
+    )
+    LottoDBHelper.save_generation_history(
+        set_count=1,
+        generated_sets=[[3, 11, 17, 26, 35, 43, 6]],
+        metadata=fallback_metadata,
+    )
+
+    grouped = LottoDBHelper.get_generation_batch_history()
+    assert isinstance(grouped, list)
+    assert grouped
+
+    batch_row = next((row for row in grouped if row.get("batch_id") == batch_id), None)
+    assert batch_row is not None
+    assert batch_row.get("session_count") == 2
+    assert batch_row.get("set_count") == 2
+    assert batch_row.get("has_top_ranked") is True
+    assert isinstance(batch_row.get("score_weight_profile"), dict)
+    assert batch_row.get("score_weight_profile")
+    assert isinstance(batch_row.get("session_ids"), list)
+    assert len(batch_row.get("session_ids")) == 2
+
+    fallback_row = next((row for row in grouped if str(row.get("batch_id", "")).startswith("session-")), None)
+    assert fallback_row is not None
+    assert fallback_row.get("is_fallback_batch") is True
+    assert fallback_row.get("session_count") == 1

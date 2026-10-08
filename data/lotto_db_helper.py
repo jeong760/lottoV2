@@ -507,6 +507,70 @@ class LottoDBHelper:
         } for rec in records]
 
     @classmethod
+    def get_generation_batch_history(cls) -> list:
+        """Retrieves generation history grouped by generation_batch_id for history UX consumers."""
+        sessions = cls.get_all_generation_history()
+        grouped = {}
+
+        for session in sessions:
+            session_id = int(session.get("id", 0) or 0)
+            raw_batch_id = str(session.get("generation_batch_id") or "").strip()
+            batch_id = raw_batch_id or (f"session-{session_id}" if session_id > 0 else "session-unknown")
+
+            metadata = session.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+
+            timestamp = str(session.get("timestamp", "") or "")
+            set_detail = session.get("sets_detail", [])
+            set_count = len(set_detail) if isinstance(set_detail, list) else 0
+            algorithm_title = str(
+                session.get("algorithm_title")
+                or metadata.get("algorithm_title")
+                or "Statistical Distribution Model"
+            )
+
+            bucket = grouped.setdefault(batch_id, {
+                "batch_id": batch_id,
+                "is_fallback_batch": not bool(raw_batch_id),
+                "session_ids": [],
+                "session_count": 0,
+                "set_count": 0,
+                "algorithm_titles": [],
+                "first_timestamp": "",
+                "latest_timestamp": "",
+                "has_top_ranked": False,
+                "score_weight_profile": {},
+            })
+
+            if session_id and session_id not in bucket["session_ids"]:
+                bucket["session_ids"].append(session_id)
+                bucket["session_count"] += 1
+
+            bucket["set_count"] += int(set_count)
+
+            if algorithm_title and algorithm_title not in bucket["algorithm_titles"]:
+                bucket["algorithm_titles"].append(algorithm_title)
+
+            if timestamp:
+                if not bucket["first_timestamp"] or timestamp < bucket["first_timestamp"]:
+                    bucket["first_timestamp"] = timestamp
+                if not bucket["latest_timestamp"] or timestamp > bucket["latest_timestamp"]:
+                    bucket["latest_timestamp"] = timestamp
+
+            top_ranked = metadata.get("top_ranked_combinations", [])
+            if isinstance(top_ranked, list) and top_ranked:
+                bucket["has_top_ranked"] = True
+
+            profile = metadata.get("score_weight_profile", {})
+            if (not bucket["score_weight_profile"]) and isinstance(profile, dict) and profile:
+                bucket["score_weight_profile"] = profile
+
+        results = list(grouped.values())
+        results.sort(key=lambda item: (item.get("latest_timestamp", ""), item.get("batch_id", "")), reverse=True)
+        return results
+
+    @classmethod
     def optimize_bonus_swap(cls, generated_6_numbers: list, bonus_number: int, official_winning_numbers: list = None) -> dict:
         """Delegates bonus swap optimization simulation to LottoEvaluator."""
         winning_tuple = cls.get_latest_winning_numbers()

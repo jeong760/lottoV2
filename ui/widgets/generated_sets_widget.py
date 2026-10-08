@@ -104,6 +104,90 @@ class BonusSwapDialog(QDialog):
         layout.addWidget(close_btn, alignment=Qt.AlignRight)
 
 
+class SessionDetailsDialog(QDialog):
+    """Dialog displaying persisted metadata details for a selected generation session."""
+    def __init__(self, session_payload: dict, parent=None):
+        super().__init__(parent)
+        self.session_payload = session_payload if isinstance(session_payload, dict) else {}
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle("Generation Session Details")
+        self.resize(680, 520)
+        self.setStyleSheet("background-color: #f8f9fa;")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+
+        title_lbl = QLabel("[Session Drill-Down: Metadata & Explainability]")
+        title_lbl.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        title_lbl.setStyleSheet("color: #2c3e50;")
+        layout.addWidget(title_lbl)
+
+        metadata = self.session_payload.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+
+        session_id = self.session_payload.get("id", "-")
+        timestamp = self.session_payload.get("timestamp", "-")
+        algo_title = self.session_payload.get("algorithm_title", metadata.get("algorithm_title", "-"))
+        batch_id = self.session_payload.get("generation_batch_id", metadata.get("generation_batch_id", "")) or "-"
+        sets_detail = self.session_payload.get("sets_detail", [])
+        set_count = len(sets_detail) if isinstance(sets_detail, list) else 0
+
+        leading_algos = metadata.get("leading_algorithms", [])
+        leading_text = ", ".join(str(v) for v in leading_algos) if isinstance(leading_algos, list) and leading_algos else "-"
+        top_ranked = metadata.get("top_ranked_combinations", [])
+        top_ranked_count = len(top_ranked) if isinstance(top_ranked, list) else 0
+        score_profile = metadata.get("score_weight_profile", {})
+
+        top_preview = {}
+        if isinstance(top_ranked, list) and top_ranked and isinstance(top_ranked[0], dict):
+            top_preview = top_ranked[0]
+
+        html = f"""
+        <b>Session ID:</b> {session_id}<br>
+        <b>Timestamp:</b> {timestamp}<br>
+        <b>Algorithm:</b> {algo_title}<br>
+        <b>Generation Batch:</b> {batch_id}<br>
+        <b>Stored Sets:</b> {set_count}<br>
+        <b>Confidence Score:</b> {metadata.get('confidence_score', '-')}<br>
+        <b>Total Algorithms Active:</b> {metadata.get('total_algorithms_active', '-')}<br>
+        <b>Leading Algorithms:</b> {leading_text}<br>
+        <b>Top-Ranked Entries:</b> {top_ranked_count}<br><br>
+        <b>Top Ranked Preview (Rank #1 if available)</b><br>
+        <pre>{json.dumps(top_preview, ensure_ascii=False, indent=2)}</pre>
+        <b>Score Weight Profile</b><br>
+        <pre>{json.dumps(score_profile if isinstance(score_profile, dict) else {}, ensure_ascii=False, indent=2)}</pre>
+        """
+
+        browser = QTextBrowser()
+        browser.setStyleSheet("""
+            QTextBrowser {
+                background-color: #ffffff;
+                border: 1px solid #dcdde1;
+                border-radius: 6px;
+                padding: 8px;
+                font-family: 'Consolas', monospace;
+                font-size: 11px;
+            }
+        """)
+        browser.setHtml(html)
+        layout.addWidget(browser)
+
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2980b9; color: white; font-weight: bold;
+                padding: 8px 16px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #3498db; }
+        """)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn, alignment=Qt.AlignRight)
+
+
 class GeneratedSetsWidget(QWidget):
     """
     Widget to display and track a history of lotto number sets.
@@ -193,6 +277,36 @@ class GeneratedSetsWidget(QWidget):
         """)
         export_ranked_btn.clicked.connect(self.export_top_ranked_session)
 
+        details_btn = QPushButton("Session Details")
+        details_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1abc9c; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #16a085; }
+        """)
+        details_btn.clicked.connect(self.show_session_details)
+
+        filter_batch_btn = QPushButton("Filter Same Batch")
+        filter_batch_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #5d6d7e; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #6c7a89; }
+        """)
+        filter_batch_btn.clicked.connect(self.filter_rows_by_selected_batch)
+
+        clear_filter_btn = QPushButton("Clear Batch Filter")
+        clear_filter_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #7f8c8d; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #95a5a6; }
+        """)
+        clear_filter_btn.clicked.connect(self.clear_batch_filter)
+
         top_layout.addWidget(refresh_btn)
         top_layout.addWidget(select_all_btn)
         top_layout.addWidget(deselect_all_btn)
@@ -200,6 +314,9 @@ class GeneratedSetsWidget(QWidget):
         top_layout.addWidget(export_all_btn)
         top_layout.addWidget(export_selected_btn)
         top_layout.addWidget(export_ranked_btn)
+        top_layout.addWidget(details_btn)
+        top_layout.addWidget(filter_batch_btn)
+        top_layout.addWidget(clear_filter_btn)
         top_layout.addStretch()
         layout.addLayout(top_layout)
 
@@ -207,7 +324,7 @@ class GeneratedSetsWidget(QWidget):
         headers = [
             "Select", "ID", "Date", "Round", "Algorithm", 
             "N1", "N2", "N3", "N4", "N5", "N6", "Bonus", 
-            "Rounds", "Matches", "Rank", "Probability"
+            "Rounds", "Matches", "Rank", "Probability", "Batch"
         ]
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
@@ -281,6 +398,9 @@ class GeneratedSetsWidget(QWidget):
                 rec_date = record.get("created_at", record.get("date", record.get("timestamp", "-")))
                 rec_round = self._get_alpha_label(row)
                 rec_title = record.get("algorithm_title", record.get("title", record.get("algorithm", "AI Ensemble")))
+                session_meta = record.get("session_metadata", {}) if isinstance(record.get("session_metadata"), dict) else {}
+                batch_id = str(session_meta.get("generation_batch_id", "") or "")
+                batch_short = batch_id[:8] if batch_id else "-"
                 
                 numbers = record.get("numbers", record.get("set_numbers", record.get("nums", [])))
                 if not numbers and isinstance(record, dict):
@@ -324,6 +444,7 @@ class GeneratedSetsWidget(QWidget):
                 item_id = QTableWidgetItem(str(seq_id))
                 item_id.setTextAlignment(Qt.AlignCenter)
                 item_id.setData(Qt.UserRole, int(record.get("id", 0) or 0))
+                item_id.setData(Qt.UserRole + 1, batch_id)
                 self.table.setItem(row, 1, item_id)
 
                 # 2. Date Item
@@ -433,6 +554,14 @@ class GeneratedSetsWidget(QWidget):
                 item_prob.setFont(QFont("Segoe UI", 9, font_weight))
                 item_prob.setForeground(prob_color)
                 self.table.setItem(row, 15, item_prob)
+
+                # 16. Batch Column
+                item_batch = QTableWidgetItem(batch_short)
+                item_batch.setTextAlignment(Qt.AlignCenter)
+                item_batch.setForeground(QColor("#34495e") if batch_id else QColor("#95a5a6"))
+                item_batch.setToolTip(batch_id if batch_id else "No batch id")
+                item_batch.setData(Qt.UserRole, batch_id)
+                self.table.setItem(row, 16, item_batch)
 
             self.table.setSortingEnabled(True)
             _log.info("Generated sets history successfully loaded with isolated Rounds and Ranks formatting.")
@@ -550,6 +679,71 @@ class GeneratedSetsWidget(QWidget):
                 return int(row)
         return -1
 
+    def _get_row_batch_id(self, row: int) -> str:
+        if row < 0:
+            return ""
+        batch_item = self.table.item(row, 16)
+        if batch_item is None:
+            return ""
+        return str(batch_item.data(Qt.UserRole) or "").strip()
+
+    def clear_batch_filter(self):
+        try:
+            for row in range(self.table.rowCount()):
+                self.table.setRowHidden(row, False)
+        except Exception as e:
+            _log.error(f"Failed to clear batch filter: {e}", exc_info=True)
+
+    def filter_rows_by_selected_batch(self):
+        try:
+            target_row = self._resolve_target_row()
+            if target_row < 0:
+                QMessageBox.warning(self, "Filter Warning", "Please select a row (or check one) to filter by batch.")
+                return
+
+            batch_id = self._get_row_batch_id(target_row)
+            if not batch_id:
+                QMessageBox.warning(self, "Filter Warning", "Selected row has no generation batch id.")
+                return
+
+            visible_count = 0
+            for row in range(self.table.rowCount()):
+                row_batch = self._get_row_batch_id(row)
+                should_show = bool(row_batch and row_batch == batch_id)
+                self.table.setRowHidden(row, not should_show)
+                if should_show:
+                    visible_count += 1
+
+            QMessageBox.information(self, "Batch Filter Applied", f"Showing {visible_count} row(s) for batch:\n{batch_id}")
+        except Exception as e:
+            _log.error(f"Failed to filter rows by batch: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to filter rows by batch: {e}")
+
+    def show_session_details(self):
+        try:
+            target_row = self._resolve_target_row()
+            if target_row < 0:
+                QMessageBox.warning(self, "Session Details", "Please select a row (or check one) first.")
+                return
+
+            id_item = self.table.item(target_row, 1)
+            session_id = int(id_item.data(Qt.UserRole)) if id_item is not None and id_item.data(Qt.UserRole) else 0
+            if session_id <= 0:
+                QMessageBox.warning(self, "Session Details", "Invalid session id for selected row.")
+                return
+
+            all_sessions = LottoDBHelper.get_all_generation_history() if hasattr(LottoDBHelper, "get_all_generation_history") else []
+            session_payload = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
+            if not isinstance(session_payload, dict):
+                QMessageBox.warning(self, "Session Details", "Could not find selected session payload.")
+                return
+
+            dlg = SessionDetailsDialog(session_payload, self)
+            dlg.exec_()
+        except Exception as e:
+            _log.error(f"Failed to show session details: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to show session details: {e}")
+
     def export_top_ranked_session(self):
         try:
             target_row = self._resolve_target_row()
@@ -613,6 +807,7 @@ class GeneratedSetsWidget(QWidget):
                 export_payload = {
                     "session_id": session_id,
                     "algorithm_title": session_payload.get("algorithm_title", ""),
+                    "generation_batch_id": session_payload.get("generation_batch_id", session_meta.get("generation_batch_id", "")),
                     "score_weight_profile": session_meta.get("score_weight_profile", {}),
                     "top_ranked_combinations": top_ranked,
                 }
