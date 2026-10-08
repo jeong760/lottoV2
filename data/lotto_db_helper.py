@@ -300,6 +300,50 @@ class LottoDBHelper:
                     conn.close()
 
     @classmethod
+    def _propagate_batch_rank_metadata(cls, records: list) -> list:
+        """Backfills shared ranking metadata across sessions from the same generation batch."""
+        if not isinstance(records, list) or not records:
+            return records
+
+        batch_seed = {}
+        for rec in records:
+            meta = rec.get("metadata", {}) if isinstance(rec, dict) else {}
+            if not isinstance(meta, dict):
+                continue
+            batch_id = str(meta.get("generation_batch_id", "") or "").strip()
+            if not batch_id:
+                continue
+
+            ranked = meta.get("top_ranked_combinations")
+            weights = meta.get("score_weight_profile")
+            if isinstance(ranked, list) and ranked:
+                batch_seed.setdefault(batch_id, {})["top_ranked_combinations"] = ranked
+            if isinstance(weights, dict) and weights:
+                batch_seed.setdefault(batch_id, {})["score_weight_profile"] = weights
+
+        if not batch_seed:
+            return records
+
+        for rec in records:
+            meta = rec.get("metadata", {}) if isinstance(rec, dict) else {}
+            if not isinstance(meta, dict):
+                continue
+            batch_id = str(meta.get("generation_batch_id", "") or "").strip()
+            if not batch_id or batch_id not in batch_seed:
+                continue
+
+            seed = batch_seed.get(batch_id, {})
+            ranked = meta.get("top_ranked_combinations")
+            weights = meta.get("score_weight_profile")
+            if (not isinstance(ranked, list) or not ranked) and "top_ranked_combinations" in seed:
+                meta["top_ranked_combinations"] = seed["top_ranked_combinations"]
+            if (not isinstance(weights, dict) or not weights) and "score_weight_profile" in seed:
+                meta["score_weight_profile"] = seed["score_weight_profile"]
+            rec["metadata"] = meta
+
+        return records
+
+    @classmethod
     def load_generation_history(cls) -> list:
         """Loads all raw generation sessions and set details from local database in optimized single-pass queries."""
         cls._ensure_tables()
@@ -380,7 +424,7 @@ class LottoDBHelper:
                         "sets_detail": sets_detail,
                         "metadata": session_meta
                     })
-                return records
+                return cls._propagate_batch_rank_metadata(records)
             except Exception as e:
                 _log.error(f"Failed to load generation history: {e}", exc_info=True)
                 return []

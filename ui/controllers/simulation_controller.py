@@ -3,6 +3,7 @@
 import logging
 import random
 import time
+import uuid
 import psutil
 import traceback
 from PyQt5.QtCore import QTimer
@@ -37,6 +38,7 @@ class SimulationController:
         self.current_algo_title_display = ""
         self.current_algo_mode_id = DEFAULT_ALGORITHM_MODE_ID
         self.current_generation_metadata = {}
+        self.current_generation_batch_id = ""
         
         self.drawing_phase = 'IDLE'
         self.remaining_mixing_seconds = 300
@@ -80,6 +82,7 @@ class SimulationController:
             self.is_generating = True
             self.simulation_start_time = time.time()
             self.current_generation_metadata = {}
+            self.current_generation_batch_id = uuid.uuid4().hex
             
             selected_algo = ""
             if hasattr(self.main_window, 'system_parameters_widget') and self.main_window.system_parameters_widget:
@@ -447,9 +450,10 @@ class SimulationController:
             "algorithm_id": self.current_algo_mode_id,
             "algorithm_title": self.current_algo_title_display if self.current_algo_title_display else get_mode_title(self.current_algo_mode_id),
             "confidence_score": 85.0,
+            "generation_batch_id": self.current_generation_batch_id or f"batch-{int(time.time() * 1000)}",
         }
         source_meta = self.current_generation_metadata if isinstance(self.current_generation_metadata, dict) else {}
-        for key in ("algorithm_id", "algorithm_title", "confidence_score", "total_algorithms_active", "leading_algorithms", "score_weight_profile"):
+        for key in ("algorithm_id", "algorithm_title", "confidence_score", "total_algorithms_active", "leading_algorithms", "score_weight_profile", "generation_batch_id"):
             if key in source_meta:
                 base_meta[key] = source_meta.get(key)
 
@@ -477,6 +481,7 @@ class SimulationController:
 
             self.is_generating = False
             self.drawing_phase = 'IDLE'
+            self.current_generation_batch_id = ""
 
             if hasattr(self.main_window, 'turbine_widget') and self.main_window.turbine_widget:
                 if hasattr(self.main_window.turbine_widget, 'extracted_balls'):
@@ -519,6 +524,7 @@ class SimulationController:
         self.turbine_timer.stop()
         self.is_generating = False
         self.drawing_phase = 'IDLE'
+        self.current_generation_batch_id = ""
         if hasattr(self.main_window, 'drawing_control_widget') and self.main_window.drawing_control_widget:
             self.main_window.drawing_control_widget.set_controls_enabled(True)
         if hasattr(self.main_window, 'turbine_widget') and self.main_window.turbine_widget:
