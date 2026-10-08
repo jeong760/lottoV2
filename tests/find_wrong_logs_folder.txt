@@ -1,0 +1,59 @@
+# Find-BadLogPaths.ps1
+# 프로젝트 내에서 상대 경로로 logs 또는 db를 생성하는 위험한 코드를 탐색합니다.
+Write-Host "🔍 Searching for potential misconfigured log/db paths in Python files..." -ForegroundColor Cyan
+
+Get-ChildItem -Path . -Recurse -Filter "*.py" | Select-String -Pattern '(os\.path\.join\s*\(\s*["\x27]logs["\x27]|["\x27]\./logs["\x27]|os\.makedirs\s*\(\s*["\x27]logs["\x27])' | 
+Select-Object Path, LineNumber, Line
+
+Write-Host "✨ Search completed." -ForegroundColor Green
+
+실시간 로그 모니터링: 꼬리 물기 뷰어 (Watch-LottoLogs.ps1)
+# Watch-LottoLogs.ps1
+param(
+    [Parameter(Mandatory=$false)]
+    [ValidateSet("general", "error")]
+    [string]$Type = "error"
+)
+
+$logPath = if ($Type -eq "error") { "logs/lotto_error.log" } else { "logs/lotto_general.log" }
+
+if (-not (Test-Path $logPath)) {
+    Write-Host "❌ Log file not found at: $logPath. Make sure the app has run at least once." -ForegroundColor Red
+    exit
+}
+
+Write-Host "👀 Tailing live log ($logPath). Press Ctrl+C to exit..." -ForegroundColor Yellow
+Get-Content -Path $logPath -Tail 20 -Wait
+
+개발 환경 클리너: 캐시 및 찌꺼기 파일 청소 (Clean-PyCache.ps1)
+# Clean-PyCache.ps1
+Write-Host "🧹 Cleaning up Python cache and temporary artifacts..." -ForegroundColor Cyan
+
+# 1. __pycache__ 폴더 삭제
+Get-ChildItem -Path . -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
+Write-Host "✔️ Removed all __pycache__ directories." -ForegroundColor DarkGreen
+
+# 2. .pyc 파일 삭제
+Get-ChildItem -Path . -Recurse -Filter "*.pyc" | Remove-Item -Force
+Write-Host "✔️ Removed all .pyc files." -ForegroundColor DarkGreen
+
+# 3. 빈 logs 폴더나 테스트 임시 파일 정리 (선택 사항)
+# Remove-Item -Path "logs/*.log" -Force -ErrorAction SilentlyContinue
+
+Write-Host "✨ Cleanup completed successfully!" -ForegroundColor Green
+
+테스트 자동화 실행기: Pytest 통합 리포트 (Run-Tests.ps1)
+
+# Run-Tests.ps1
+Write-Host "🧪 Running all pytest suites with detailed output..." -ForegroundColor Cyan
+
+# PYTHONPATH에 현재 프로젝트 루트를 강제로 추가하여 임포트 에러 방지
+$env:PYTHONPATH = $PWD
+
+pytest -v --tb=short
+
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "🎉 All tests passed successfully!" -ForegroundColor Green
+} else {
+    Write-Host "❌ Some tests failed. Please check the logs above." -ForegroundColor Red
+}

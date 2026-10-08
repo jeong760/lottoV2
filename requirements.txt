@@ -1,0 +1,52 @@
+# LottoV2 runtime dependencies; keep aligned with pyproject.toml.
+
+# PyQt5: GUI toolkit baseline for Qt compatibility
+PyQt5>=5.15.11
+
+# PyQt5-sip: keep compatible with supported PyQt5 wheels
+PyQt5-sip>=12.19.0
+
+# NumPy: flexible within stable major versions
+numpy>=2.0,<4
+
+# pandas: flexible within the 2.x API line
+pandas>=2.0,<3
+
+# requests: networking utility without strict version coupling
+requests>=2.32.0
+
+# scikit-learn: flexible within current major version
+scikit-learn>=1.0,<2
+
+# statsmodels: baseline for statistical engine compatibility
+statsmodels>=0.14.5
+
+# XGBoost: flexible within current major version
+xgboost>=2.0,<4
+
+# LightGBM: flexible within current major version
+lightgbm>=3.0,<5
+
+# CatBoost: flexible within current major version
+catboost>=1.0,<2
+
+# torch: minimum retained for GPU/runtime compatibility
+torch>=2.12.0
+
+# jax: minimum retained for model and numerical compatibility
+jax>=0.11.2
+
+# openpyxl: flexible within current major version
+openpyxl>=3.1,<4
+
+# SciPy: flexible within current major version
+scipy>=1.10,<2
+
+# psutil: flexible utility dependency
+psutil>=5.9,<8
+
+# reportlab: flexible within current major version
+reportlab>=4.0,<5
+
+# packaging: flexible utility dependency
+packaging>=23,<27
