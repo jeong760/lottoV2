@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
+import json
+import sqlite3
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir) if "tests" in current_dir else current_dir
@@ -136,3 +138,65 @@ def test_generation_history_backfills_rankings_with_batch_id(monkeypatch, tmp_pa
     for rec in flat:
         assert rec.get("top_ranked_combinations")
         assert rec["top_ranked_combinations"][0]["rank"] == 1
+
+
+def test_generation_history_batch_id_column_fallback(monkeypatch, tmp_path):
+    tmp_db_path = tmp_path / "phase_g_generation_history.db"
+    monkeypatch.setattr(
+        LottoDBHelper,
+        "_get_db_path",
+        staticmethod(lambda: str(tmp_db_path)),
+    )
+
+    LottoDBHelper._ensure_tables()
+    batch_id = "phase-g-column-batch-001"
+
+    conn = sqlite3.connect(str(tmp_db_path))
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO generation_sessions (created_at, set_count, algorithm_title, round_info, metadata_json, generation_batch_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "2026-10-08 00:00:00",
+            1,
+            "Column Batch Algo",
+            "Live Draw",
+            json.dumps({"algorithm_title": "Column Batch Algo"}, ensure_ascii=False),
+            batch_id,
+        ),
+    )
+    session_id = cur.lastrowid
+    cur.execute(
+        """
+        INSERT INTO generated_sets (
+            session_id, created_at, round_info, set_no, algorithm_title,
+            numbers, match_count, rounds_info, probability_str,
+            num1, num2, num3, num4, num5, num6, bonus_no
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            session_id,
+            "2026-10-08 00:00:00",
+            "Live Draw",
+            1,
+            "Column Batch Algo",
+            json.dumps([1, 3, 11, 17, 29, 42, 7], ensure_ascii=False),
+            0,
+            "-",
+            "0.00%",
+            1, 3, 11, 17, 29, 42, 7,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    sessions = LottoDBHelper.load_generation_history()
+    assert sessions
+    session_meta = sessions[0].get("metadata", {})
+    assert session_meta.get("generation_batch_id") == batch_id
+
+    all_history = LottoDBHelper.get_all_generation_history()
+    assert all_history
+    assert all_history[0].get("generation_batch_id") == batch_id
