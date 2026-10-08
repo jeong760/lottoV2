@@ -26,7 +26,7 @@ class ProbabilityCurveWidget(QWidget):
     """
     def __init__(self, parent=None):
         super().__init__(parent)
-        # °¡·Î·Î ³Ê¹« ´Ã¾îÁöÁö ¾Êµµ·Ï ÀûÀýÇÑ ±âº» ³ôÀÌ ¹× Å©±â Á¤Ã¥ ¼³Á¤
+        # ê°€ë¡œë¡œ ë„ˆë¬´ ëŠ˜ì–´ì§€ì§€ ì•Šë„ë¡ ì ì ˆí•œ ê¸°ë³¸ ë†’ì´ ë° í¬ê¸° ì •ì±… ì„¤ì •
         self.setMinimumSize(320, 200)
         self.setMaximumHeight(260)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -73,10 +73,10 @@ class ProbabilityCurveWidget(QWidget):
         status_text = f"{'Normal (p>0.05)' if self.is_uniform else 'Biased (p<=0.05)'} [p={self.p_value:.3f}]"
         painter.setFont(QFont("Segoe UI", 8.5))
         painter.setPen(QColor("#27ae60" if self.is_uniform else "#c0392b"))
-        # ¿ìÃø ¿©¹é¿¡ µü ¸Âµµ·Ï À§Ä¡ Á¶Á¤
+        # ìš°ì¸¡ ì—¬ë°±ì— ë”± ë§žë„ë¡ ìœ„ì¹˜ ì¡°ì •
         painter.drawText(width - 165, 20, status_text)
 
-        # Plot boundary margins (ÄÄÆÑÆ®ÇÑ ºñÀ²¿¡ ¸ÂÃç ¿©¹é ÃÖÀûÈ­)
+        # Plot boundary margins (ì»´íŒ©íŠ¸í•œ ë¹„ìœ¨ì— ë§žì¶° ì—¬ë°± ìµœì í™”)
         margin_left, margin_right, margin_top, margin_bottom = 35, 25, 38, 30
         graph_width = width - (margin_left + margin_right)
         graph_height = height - (margin_top + margin_bottom)

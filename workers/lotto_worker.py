@@ -41,7 +41,7 @@ class LottoWorker(QThread):
         self.set_count = set_count
         self.algorithm_title = algorithm_title
         
-        # ¾ÈÀüÇÑ Å¸ÀÔ º¯È¯ ¹× ÇÊÅÍ Á¤Á¦
+        # ì•ˆì „í•œ íƒ€ì… ë³€í™˜ ë° í•„í„° ì •ì œ
         self.fixed_numbers = [int(n) for n in (fixed_numbers or []) if 1 <= n <= 45]
         raw_excluded = [int(n) for n in (excluded_numbers or []) if 1 <= n <= 45]
         self.excluded_numbers = [n for n in raw_excluded if n not in self.fixed_numbers]
@@ -142,7 +142,7 @@ class LottoWorker(QThread):
             return True
         except Exception as e:
             _log.warning(f"Error in _passes_quality_gate: {e}", exc_info=True)
-            return True  # ¿¹¿Ü ½Ã Åë°ú½ÃÄÑ Å©·¡½Ã ¹æÁö
+            return True  # ì˜ˆì™¸ ì‹œ í†µê³¼ì‹œì¼œ í¬ë˜ì‹œ ë°©ì§€
 
     def run(self):
         try:
@@ -150,7 +150,7 @@ class LottoWorker(QThread):
             all_generated_sets = []
             full_sets_for_db = []
             
-            # ÃÖ½Å ´çÃ· ¹øÈ£ Ä³½Ì (¼º´É ÃÖÀûÈ­)
+            # ìµœì‹  ë‹¹ì²¨ ë²ˆí˜¸ ìºì‹± (ì„±ëŠ¥ ìµœì í™”)
             latest_draw_nums = self._get_latest_draw_numbers()
 
             prediction_sets = []

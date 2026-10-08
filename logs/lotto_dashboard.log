@@ -1,0 +1,43 @@
+2026-10-08 14:59:29 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:29 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:29 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:29 [WARNING] [WorkersModule]: [WorkersModule] Could not import 'LottoWorker': No module named 'numpy'
+2026-10-08 14:59:29 [WARNING] [WorkersModule]: [WorkersModule] Could not import 'AITrainWorker': No module named 'numpy'
+2026-10-08 14:59:29 [INFO] [WorkersModule]: [WorkersModule] Workers package initialization completed.
+2026-10-08 14:59:38 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:38 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:38 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:38 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:38 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:38 [WARNING] [WorkersModule]: [WorkersModule] Could not import 'LottoWorker': No module named 'PyQt5'
+2026-10-08 14:59:38 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:38 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:38 [WARNING] [WorkersModule]: [WorkersModule] Could not import 'AITrainWorker': No module named 'PyQt5'
+2026-10-08 14:59:38 [INFO] [WorkersModule]: [WorkersModule] Workers package initialization completed.
+2026-10-08 14:59:38 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [INFO] [ConfigModule]: Configuration module loaded successfully with centralized logging setup and absolute paths.
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [WARNING] [CoreModule]: [CoreModule] Failed to inject statistics_engine alias: No module named 'scipy'
+2026-10-08 14:59:51 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [ERROR] [CoreModule]: Failed to load AIEngine: No module named 'core.ai_engine'
+2026-10-08 14:59:51 [ERROR] [CoreModule]: Failed to load AIEngine: No module named 'core.ai_engine'
+2026-10-08 14:59:51 [WARNING] [AIModule]: [AIModule] Could not import 'LottoAILearningModel': No module named 'pandas'
+2026-10-08 14:59:51 [INFO] [AIModule]: [AIModule] AI package initialization completed.
+2026-10-08 14:59:51 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 14:59:51 [ERROR] [CoreModule]: Failed to load AIEngine: No module named 'core.ai_engine'
+2026-10-08 14:59:51 [ERROR] [CoreModule]: Failed to load AIEngine: No module named 'core.ai_engine'
+2026-10-08 14:59:51 [WARNING] [WorkersModule]: [WorkersModule] Could not import 'AITrainWorker': No module named 'pandas'
+2026-10-08 14:59:51 [INFO] [WorkersModule]: [WorkersModule] Workers package initialization completed.
+2026-10-08 14:59:51 [INFO] [TestQualityGate]: Running test_ac_value_calculation...
+2026-10-08 14:59:51 [INFO] [TestQualityGate]: test_ac_value_calculation passed successfully.
+2026-10-08 14:59:51 [INFO] [TestQualityGate]: Running test_quality_gate_boundaries...
+2026-10-08 14:59:51 [INFO] [TestQualityGate]: test_quality_gate_boundaries passed successfully.
