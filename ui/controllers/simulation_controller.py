@@ -8,17 +8,14 @@ import traceback
 from PyQt5.QtCore import QTimer
 from workers.lotto_worker import LottoWorker
 from data.lotto_db_helper import LottoDBHelper
+from core.algorithm_catalog import (
+    DEFAULT_ALGORITHM_MODE_ID,
+    get_mode_title,
+    get_runtime_selectable_mode_ids,
+    resolve_algorithm_mode_id,
+)
 
 _log = logging.getLogger("SimulationController")
-
-AVAILABLE_ALGO_GROUPS = [
-    "Statistical Distribution Model",
-    "Frequency Matrix Analyzer",
-    "Machine Learning Gradient Engine",
-    "AI Neural Predictor",
-    "Historical Pattern Matcher",
-    "Advanced Markov Chain Ensemble"
-]
 
 class SimulationController:
     """Controller responsible for managing number generation, Venus turbine simulation, and drawing states."""
@@ -38,6 +35,7 @@ class SimulationController:
         self.current_accumulated_discards = 0
         self.target_discards_to_accumulate = 0
         self.current_algo_title_display = ""
+        self.current_algo_mode_id = DEFAULT_ALGORITHM_MODE_ID
         
         self.drawing_phase = 'IDLE'
         self.remaining_mixing_seconds = 300
@@ -83,15 +81,21 @@ class SimulationController:
             
             selected_algo = ""
             if hasattr(self.main_window, 'system_parameters_widget') and self.main_window.system_parameters_widget:
-                if hasattr(self.main_window.system_parameters_widget, 'get_selected_algorithm'):
+                if hasattr(self.main_window.system_parameters_widget, 'get_selected_algorithm_id'):
+                    selected_algo = self.main_window.system_parameters_widget.get_selected_algorithm_id()
+                elif hasattr(self.main_window.system_parameters_widget, 'get_selected_algorithm'):
                     selected_algo = self.main_window.system_parameters_widget.get_selected_algorithm()
                 elif hasattr(self.main_window.system_parameters_widget, 'algorithm_combo') and self.main_window.system_parameters_widget.algorithm_combo:
                     selected_algo = self.main_window.system_parameters_widget.algorithm_combo.currentText()
 
-            if not selected_algo or selected_algo == "Advanced AI Ensemble":
-                selected_algo = random.choice(AVAILABLE_ALGO_GROUPS)
+            selected_algo_id = resolve_algorithm_mode_id(selected_algo)
+            if selected_algo_id == DEFAULT_ALGORITHM_MODE_ID:
+                selectable_ids = get_runtime_selectable_mode_ids(include_random=False)
+                if selectable_ids:
+                    selected_algo_id = random.choice(selectable_ids)
 
-            self.current_algo_title_display = selected_algo.split("(")[0].strip() if "(" in selected_algo else selected_algo
+            self.current_algo_mode_id = selected_algo_id
+            self.current_algo_title_display = get_mode_title(selected_algo_id)
             
             fixed_numbers = []
             excluded_numbers = []
@@ -117,6 +121,7 @@ class SimulationController:
 
             if hasattr(self.main_window, 'live_console_widget') and self.main_window.live_console_widget:
                 self.main_window.live_console_widget.log_message(f"Selected Algorithm (Dynamic Ensemble): {self.current_algo_title_display}")
+                self.main_window.live_console_widget.log_message(f"Selected Algorithm ID: {self.current_algo_mode_id}")
                 if fixed_numbers:
                     self.main_window.live_console_widget.log_message(f"User Fixed Numbers Applied: {fixed_numbers}")
                 if excluded_numbers:
@@ -147,6 +152,7 @@ class SimulationController:
                 self.main_window.engine, 
                 set_count=set_count, 
                 algorithm_title=self.current_algo_title_display,
+                algorithm_id=self.current_algo_mode_id,
                 fixed_numbers=fixed_numbers,
                 excluded_numbers=excluded_numbers
             )
@@ -165,10 +171,14 @@ class SimulationController:
         _log.info("[DEBUG] on_generation_finished called.")
         try:
             algo_title = ""
+            algo_mode_id = self.current_algo_mode_id
             leading_algos = []
             
             if metadata and isinstance(metadata, dict):
                 meta_title = metadata.get("algorithm_title", "")
+                meta_mode_id = metadata.get("algorithm_id")
+                if meta_mode_id:
+                    algo_mode_id = resolve_algorithm_mode_id(meta_mode_id)
                 if meta_title and "Venus Turbine" not in meta_title:
                     algo_title = meta_title
                 leading_algos = metadata.get("leading_algorithms", [])
@@ -176,10 +186,11 @@ class SimulationController:
             if not algo_title and self.current_algo_title_display:
                 algo_title = self.current_algo_title_display
 
-            if not algo_title or algo_title == "Advanced AI Ensemble":
-                algo_title = random.choice(AVAILABLE_ALGO_GROUPS)
+            if not algo_title:
+                algo_title = get_mode_title(algo_mode_id)
 
-            self.current_algo_title_display = algo_title.split("(")[0].strip() if "(" in algo_title else algo_title
+            self.current_algo_mode_id = algo_mode_id
+            self.current_algo_title_display = algo_title
             
             if hasattr(self.main_window, 'live_console_widget') and self.main_window.live_console_widget:
                 self.main_window.live_console_widget.log_message(f"--- [Algorithm Execution Audit] ---")
@@ -376,7 +387,8 @@ class SimulationController:
                 
                 try:
                     single_metadata = {
-                        "algorithm_title": self.current_algo_title_display if self.current_algo_title_display else random.choice(AVAILABLE_ALGO_GROUPS), 
+                        "algorithm_id": self.current_algo_mode_id,
+                        "algorithm_title": self.current_algo_title_display if self.current_algo_title_display else get_mode_title(self.current_algo_mode_id), 
                         "confidence_score": 85.0
                     }
                     if len(valid_6_numbers) == 6:

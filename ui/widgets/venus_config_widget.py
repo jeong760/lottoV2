@@ -14,6 +14,7 @@ _log = logging.getLogger("VenusConfigWidget")
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QGroupBox, QLabel, QSpinBox, QComboBox, QPushButton, QMessageBox
 from PyQt5.QtCore import Qt
+from core.algorithm_catalog import get_mode_title, get_mode_titles, resolve_algorithm_mode_id
 
 class VenusConfigWidget(QWidget):
     """Widget for configuring VENUS physical drawing machine simulations and algorithm hybrid weight policies."""
@@ -63,12 +64,8 @@ class VenusConfigWidget(QWidget):
         row3 = QHBoxLayout()
         lbl_strategy = QLabel("Default Recommendation Algorithm Mode:")
         self.combo_strategy = QComboBox()
-        self.combo_strategy.addItems([
-            "Markov Chain & Monte Carlo Hybrid (Recommended)",
-            "Deep Learning LSTM Trend Predictor",
-            "Hot/Cold Statistical Balancing",
-            "Pure Random Physics Simulation"
-        ])
+        self.combo_strategy.addItems(get_mode_titles(include_random=True))
+        self.combo_strategy.setCurrentText(get_mode_title("ensemble_auto"))
         row3.addWidget(lbl_strategy)
         row3.addWidget(self.combo_strategy)
         row3.addStretch(1)
@@ -121,7 +118,14 @@ class VenusConfigWidget(QWidget):
         try:
             return self.combo_strategy.currentText()
         except Exception:
-            return "Markov Chain & Monte Carlo Hybrid"
+            return get_mode_title("ensemble_auto")
+
+    def get_selected_algorithm_id(self) -> str:
+        """Get currently selected algorithm strategy ID."""
+        try:
+            return resolve_algorithm_mode_id(self.combo_strategy.currentText())
+        except Exception:
+            return "ensemble_auto"
 
     def on_save_clicked(self):
         speed = self.spin_speed.value()

@@ -7,6 +7,7 @@ import random
 import traceback
 from typing import List, Dict, Any, Tuple
 import numpy as np
+from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -329,11 +330,18 @@ class AlgorithmHub:
             _log.warning(f"K-Means diversification fallback triggered: {e}", exc_info=True)
             return candidate_pool[:int(target_count)]
 
-    def generate_prediction_sets(self, set_count: int = 5, fixed_numbers: list = None, excluded_numbers: list = None):
+    def generate_prediction_sets(
+        self,
+        set_count: int = 5,
+        fixed_numbers: list = None,
+        excluded_numbers: list = None,
+        selected_algorithm_id: str = "ensemble_auto",
+    ):
         try:
             if self.engine and hasattr(self.engine, "generate_prediction_sets"):
                 return self.engine.generate_prediction_sets(
                     set_count=int(set_count), 
+                    selected_algorithm_id=selected_algorithm_id,
                     fixed_numbers=fixed_numbers, 
                     excluded_numbers=excluded_numbers
                 )
@@ -341,9 +349,16 @@ class AlgorithmHub:
             _log.warning(f"Error in generate_prediction_sets: {e}", exc_info=True)
         return []
 
-    def generate_premium_numbers(self, set_count: int = 5, fixed_numbers: list = None, excluded_numbers: list = None) -> Tuple[List[List[int]], List[int], Dict[str, Any], Dict[str, Any]]:
+    def generate_premium_numbers(
+        self,
+        set_count: int = 5,
+        fixed_numbers: list = None,
+        excluded_numbers: list = None,
+        selected_algorithm_id: str = "ensemble_auto",
+    ) -> Tuple[List[List[int]], List[int], Dict[str, Any], Dict[str, Any]]:
         try:
             target_count = int(set_count)
+            resolved_algorithm_id = resolve_algorithm_mode_id(selected_algorithm_id)
             fixed_list = [int(n) for n in (fixed_numbers or []) if 1 <= int(n) <= 45]
             excluded_list = [int(n) for n in (excluded_numbers or []) if 1 <= int(n) <= 45]
             excluded_list = [n for n in excluded_list if n not in fixed_list]
@@ -353,6 +368,7 @@ class AlgorithmHub:
             raw_pool_size = max(target_count * 8, 40)
             prediction_sets = self.generate_prediction_sets(
                 set_count=raw_pool_size, 
+                selected_algorithm_id=resolved_algorithm_id,
                 fixed_numbers=fixed_list, 
                 excluded_numbers=excluded_list
             )
@@ -424,7 +440,8 @@ class AlgorithmHub:
             }
 
             metadata = {
-                "algorithm_title": f"GA & K-Means Diversified Ensemble ({target_count:,} sets)",
+                "algorithm_id": resolved_algorithm_id,
+                "algorithm_title": get_mode_title(resolved_algorithm_id),
                 "total_algorithms_active": 500,
                 "confidence_score": float(confidence),
                 "leading_algorithms": ["Genetic Evolution Optimizer", "K-Means Cluster Diversifier"]

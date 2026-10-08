@@ -22,6 +22,7 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from config import SUM_MIN, SUM_MAX
 from data.repositories.lotto_repository import LottoRepository
 from utils.audit_security import AuditTrailSecurity
+from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
 
 _log = logging.getLogger("LottoTurbineWorker")
 
@@ -35,11 +36,20 @@ class LottoWorker(QThread):
     finished_signal = pyqtSignal(list, list, dict, dict)  # all_sets, discards, stats, metadata
     error_signal = pyqtSignal(str)
 
-    def __init__(self, engine, set_count: int = 5, algorithm_title: str = "Statistical Distribution Model", fixed_numbers: list = None, excluded_numbers: list = None):
+    def __init__(
+        self,
+        engine,
+        set_count: int = 5,
+        algorithm_title: str = "Statistical Distribution Model",
+        algorithm_id: str = "ensemble_auto",
+        fixed_numbers: list = None,
+        excluded_numbers: list = None,
+    ):
         super().__init__()
         self.engine = engine
         self.set_count = set_count
-        self.algorithm_title = algorithm_title
+        self.algorithm_id = resolve_algorithm_mode_id(algorithm_id)
+        self.algorithm_title = algorithm_title or get_mode_title(self.algorithm_id)
         
         # 안전한 타입 변환 및 필터 정제
         self.fixed_numbers = [int(n) for n in (fixed_numbers or []) if 1 <= n <= 45]
@@ -154,13 +164,25 @@ class LottoWorker(QThread):
             latest_draw_nums = self._get_latest_draw_numbers()
 
             prediction_sets = []
+            strategy_title = self.algorithm_title
+            strategy_sources = []
             if self.engine and hasattr(self.engine, "generate_prediction_sets"):
                 try:
                     prediction_sets = self.engine.generate_prediction_sets(
                         set_count=self.set_count * 6, 
+                        selected_algorithm_id=self.algorithm_id,
                         fixed_numbers=self.fixed_numbers, 
                         excluded_numbers=self.excluded_numbers
                     ) or []
+                    for pred in prediction_sets:
+                        if not isinstance(pred, dict):
+                            continue
+                        pred_title = pred.get("algorithm_title")
+                        if pred_title:
+                            strategy_title = str(pred_title)
+                        pred_source = pred.get("source")
+                        if pred_source and pred_source not in strategy_sources:
+                            strategy_sources.append(str(pred_source))
                 except Exception as ex:
                     _log.warning(f"Engine generation fallback triggered: {ex}", exc_info=True)
 
@@ -240,13 +262,15 @@ class LottoWorker(QThread):
             }
 
             metadata = {
-                "algorithm_title": self.algorithm_title,
+                "algorithm_id": self.algorithm_id,
+                "algorithm_title": strategy_title,
                 "round_info": "Live Draw",
                 "total_algorithms_active": 500,
                 "confidence_score": 94.2 if self.ai_weights else 90.5,
                 "discarded_count": discarded_total,
                 "leading_algorithms": [
-                    self.algorithm_title,
+                    strategy_title,
+                    *strategy_sources[:2],
                     "Quality Gate Filtering Engine",
                     "AI Neural Weight Ensembler" if self.ai_weights else "Statistical Matrix Evaluator"
                 ]
