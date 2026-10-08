@@ -4,6 +4,7 @@ import sys
 import os
 import logging
 import csv
+import json
 
 # Ensure project root is in python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -182,12 +183,23 @@ class GeneratedSetsWidget(QWidget):
         """)
         export_selected_btn.clicked.connect(lambda: self.export_to_excel(selected_only=True))
 
+        export_ranked_btn = QPushButton("Export Session Top-50")
+        export_ranked_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #34495e; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #3d566e; }
+        """)
+        export_ranked_btn.clicked.connect(self.export_top_ranked_session)
+
         top_layout.addWidget(refresh_btn)
         top_layout.addWidget(select_all_btn)
         top_layout.addWidget(deselect_all_btn)
         top_layout.addWidget(optimize_btn)
         top_layout.addWidget(export_all_btn)
         top_layout.addWidget(export_selected_btn)
+        top_layout.addWidget(export_ranked_btn)
         top_layout.addStretch()
         layout.addLayout(top_layout)
 
@@ -311,6 +323,7 @@ class GeneratedSetsWidget(QWidget):
                 # 1. Sequential ID Item
                 item_id = QTableWidgetItem(str(seq_id))
                 item_id.setTextAlignment(Qt.AlignCenter)
+                item_id.setData(Qt.UserRole, int(record.get("id", 0) or 0))
                 self.table.setItem(row, 1, item_id)
 
                 # 2. Date Item
@@ -522,3 +535,92 @@ class GeneratedSetsWidget(QWidget):
         except Exception as e:
             _log.error(f"Failed to export data: {e}")
             QMessageBox.critical(self, "Error", f"Failed to export data: {e}")
+
+    def _resolve_target_row(self) -> int:
+        current_row = self.table.currentRow()
+        if current_row >= 0:
+            return int(current_row)
+
+        for row in range(self.table.rowCount()):
+            cell_widget = self.table.cellWidget(row, 0)
+            if not cell_widget:
+                continue
+            chk = cell_widget.findChild(QCheckBox)
+            if chk and chk.isChecked():
+                return int(row)
+        return -1
+
+    def export_top_ranked_session(self):
+        try:
+            target_row = self._resolve_target_row()
+            if target_row < 0:
+                QMessageBox.warning(self, "Export Warning", "Please select a row (or check one) to export session rankings.")
+                return
+
+            id_item = self.table.item(target_row, 1)
+            session_id = int(id_item.data(Qt.UserRole)) if id_item is not None and id_item.data(Qt.UserRole) else 0
+            if session_id <= 0:
+                QMessageBox.warning(self, "Export Warning", "Invalid session id for selected row.")
+                return
+
+            all_sessions = LottoDBHelper.get_all_generation_history() if hasattr(LottoDBHelper, "get_all_generation_history") else []
+            session_payload = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
+            if not isinstance(session_payload, dict):
+                QMessageBox.warning(self, "Export Warning", "Could not find selected session payload.")
+                return
+
+            session_meta = session_payload.get("metadata", {}) if isinstance(session_payload.get("metadata"), dict) else {}
+            top_ranked = session_meta.get("top_ranked_combinations", [])
+            if not isinstance(top_ranked, list) or not top_ranked:
+                QMessageBox.warning(self, "Export Warning", "No Top-50 ranking data stored for this session.")
+                return
+
+            default_name = f"lotto_top_ranked_session_{session_id}.json"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Session Top-50 Rankings",
+                default_name,
+                "JSON Files (*.json);;CSV Files (*.csv);;All Files (*)",
+            )
+            if not file_path:
+                return
+
+            if file_path.lower().endswith(".csv"):
+                headers = [
+                    "rank", "n1", "n2", "n3", "n4", "n5", "n6",
+                    "confidence_score", "probability_score", "pattern_score",
+                    "ai_score", "genetic_score", "ensemble_score",
+                ]
+                with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(headers)
+                    for row in top_ranked:
+                        nums = row.get("numbers", []) if isinstance(row, dict) else []
+                        nums = list(nums[:6]) if isinstance(nums, list) else []
+                        while len(nums) < 6:
+                            nums.append("")
+                        writer.writerow([
+                            row.get("rank", ""),
+                            nums[0], nums[1], nums[2], nums[3], nums[4], nums[5],
+                            row.get("confidence_score", ""),
+                            row.get("probability_score", ""),
+                            row.get("pattern_score", ""),
+                            row.get("ai_score", ""),
+                            row.get("genetic_score", ""),
+                            row.get("ensemble_score", ""),
+                        ])
+            else:
+                export_payload = {
+                    "session_id": session_id,
+                    "algorithm_title": session_payload.get("algorithm_title", ""),
+                    "score_weight_profile": session_meta.get("score_weight_profile", {}),
+                    "top_ranked_combinations": top_ranked,
+                }
+                with open(file_path, mode="w", encoding="utf-8") as f:
+                    json.dump(export_payload, f, ensure_ascii=False, indent=2)
+
+            QMessageBox.information(self, "Success", f"Successfully exported Top-50 rankings to:\n{file_path}")
+            _log.info("Exported session Top-50 rankings: session_id=%s path=%s", session_id, file_path)
+        except Exception as e:
+            _log.error(f"Failed to export session Top-50 rankings: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to export session Top-50 rankings: {e}")

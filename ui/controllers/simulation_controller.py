@@ -36,6 +36,7 @@ class SimulationController:
         self.target_discards_to_accumulate = 0
         self.current_algo_title_display = ""
         self.current_algo_mode_id = DEFAULT_ALGORITHM_MODE_ID
+        self.current_generation_metadata = {}
         
         self.drawing_phase = 'IDLE'
         self.remaining_mixing_seconds = 300
@@ -78,6 +79,7 @@ class SimulationController:
         try:
             self.is_generating = True
             self.simulation_start_time = time.time()
+            self.current_generation_metadata = {}
             
             selected_algo = ""
             if hasattr(self.main_window, 'system_parameters_widget') and self.main_window.system_parameters_widget:
@@ -175,6 +177,7 @@ class SimulationController:
             leading_algos = []
             
             if metadata and isinstance(metadata, dict):
+                self.current_generation_metadata = dict(metadata)
                 meta_title = metadata.get("algorithm_title", "")
                 meta_mode_id = metadata.get("algorithm_id")
                 if meta_mode_id:
@@ -386,11 +389,7 @@ class SimulationController:
                 full_set_with_bonus = sorted(valid_6_numbers) + [bonus_number]
                 
                 try:
-                    single_metadata = {
-                        "algorithm_id": self.current_algo_mode_id,
-                        "algorithm_title": self.current_algo_title_display if self.current_algo_title_display else get_mode_title(self.current_algo_mode_id), 
-                        "confidence_score": 85.0
-                    }
+                    single_metadata = self._build_persistence_metadata(include_rankings=(self.current_set_index == 0))
                     if len(valid_6_numbers) == 6:
                         LottoDBHelper.save_generation_history(
                             set_count=1, generated_sets=[full_set_with_bonus], metadata=single_metadata
@@ -442,6 +441,22 @@ class SimulationController:
                     self.turbine_timer.start(1000)
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] process_next_extraction_ball error: {e}\n{traceback.format_exc()}")
+
+    def _build_persistence_metadata(self, include_rankings: bool = False) -> dict:
+        base_meta = {
+            "algorithm_id": self.current_algo_mode_id,
+            "algorithm_title": self.current_algo_title_display if self.current_algo_title_display else get_mode_title(self.current_algo_mode_id),
+            "confidence_score": 85.0,
+        }
+        source_meta = self.current_generation_metadata if isinstance(self.current_generation_metadata, dict) else {}
+        for key in ("algorithm_id", "algorithm_title", "confidence_score", "total_algorithms_active", "leading_algorithms", "score_weight_profile"):
+            if key in source_meta:
+                base_meta[key] = source_meta.get(key)
+
+        top_ranked = source_meta.get("top_ranked_combinations", [])
+        if include_rankings and isinstance(top_ranked, list):
+            base_meta["top_ranked_combinations"] = top_ranked[:50]
+        return base_meta
 
     def on_stop_pressed(self):
         """Handle stop simulation request and reset timers/workers."""

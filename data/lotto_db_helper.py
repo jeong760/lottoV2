@@ -64,9 +64,20 @@ class LottoDBHelper:
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
                         created_at TEXT,
                         set_count INTEGER,
-                        algorithm_title TEXT
+                        algorithm_title TEXT,
+                        round_info TEXT DEFAULT 'Live Draw',
+                        metadata_json TEXT DEFAULT '{}'
                     )
                 """)
+
+                for col, ctype in [
+                    ("round_info", "TEXT DEFAULT 'Live Draw'"),
+                    ("metadata_json", "TEXT DEFAULT '{}'"),
+                ]:
+                    try:
+                        cursor.execute(f"ALTER TABLE generation_sessions ADD COLUMN {col} {ctype}")
+                    except sqlite3.OperationalError:
+                        pass
                 
                 # 2. Unified generated_sets table creation
                 cursor.execute("""
@@ -222,6 +233,20 @@ class LottoDBHelper:
         meta = metadata if isinstance(metadata, dict) else {}
         title = meta.get("algorithm_title") or meta.get("algorithm") or "Statistical Distribution Model"
         round_info = meta.get("round_info") or meta.get("round") or "Live Draw"
+        safe_meta = {}
+        for key, value in meta.items():
+            if value is None:
+                safe_meta[key] = None
+                continue
+            try:
+                json.dumps(value, ensure_ascii=False)
+                safe_meta[key] = value
+            except Exception:
+                safe_meta[key] = str(value)
+
+        safe_meta["algorithm_title"] = str(title)
+        safe_meta["round_info"] = str(round_info)
+        metadata_json = json.dumps(safe_meta, ensure_ascii=False, default=str)
         
         now_str = cls._get_kst_now()
 
@@ -232,9 +257,9 @@ class LottoDBHelper:
                 cursor = conn.cursor()
                 
                 cursor.execute("""
-                    INSERT INTO generation_sessions (created_at, set_count, algorithm_title)
-                    VALUES (?, ?, ?)
-                """, (now_str, set_count, str(title)))
+                    INSERT INTO generation_sessions (created_at, set_count, algorithm_title, round_info, metadata_json)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (now_str, set_count, str(title), str(round_info), metadata_json))
                 session_id = cursor.lastrowid
 
                 for idx, raw_item in enumerate(generated_sets):
@@ -327,19 +352,33 @@ class LottoDBHelper:
                     session_id = s["id"]
                     sets_detail = sets_by_session.get(session_id, [])
                     session_title = s["algorithm_title"]
-                    
+                    session_meta = {}
+                    raw_meta = s["metadata_json"] if "metadata_json" in s.keys() else "{}"
+                    if raw_meta:
+                        try:
+                            parsed_meta = json.loads(raw_meta)
+                            if isinstance(parsed_meta, dict):
+                                session_meta = parsed_meta
+                        except Exception:
+                            session_meta = {}
+
+                    if "algorithm_title" not in session_meta:
+                        session_meta["algorithm_title"] = session_title
+                    if "round_info" not in session_meta:
+                        session_meta["round_info"] = s["round_info"] if "round_info" in s.keys() else "Live Draw"
+
                     if not session_title or session_title == "Quality Gate Filtered Engine":
-                        if sets_detail and "algorithm_title" in all_sets[0].keys():
-                            session_title = "Statistical Distribution Model"
-                        else:
-                            session_title = "Statistical Distribution Model"
+                        session_title = session_meta.get("algorithm_title", "Statistical Distribution Model")
+                    if not session_title:
+                        session_title = "Statistical Distribution Model"
+                    session_meta["algorithm_title"] = session_title
 
                     records.append({
                         "session_id": session_id,
                         "created_at": s["created_at"],
                         "set_count": s["set_count"],
                         "sets_detail": sets_detail,
-                        "metadata": {"algorithm_title": session_title}
+                        "metadata": session_meta
                     })
                 return records
             except Exception as e:
@@ -391,7 +430,10 @@ class LottoDBHelper:
                     "numbers": full_numbers,
                     "match_count": match_count,
                     "rounds_info": rounds_info,
-                    "probability_str": probability_str
+                    "probability_str": probability_str,
+                    "session_metadata": rec.get("metadata", {}),
+                    "top_ranked_combinations": rec.get("metadata", {}).get("top_ranked_combinations", []),
+                    "score_weight_profile": rec.get("metadata", {}).get("score_weight_profile", {}),
                 })
         return flat_records
 
@@ -403,6 +445,7 @@ class LottoDBHelper:
             "id": rec.get("session_id"),
             "timestamp": rec.get("created_at"),
             "algorithm_title": rec.get("metadata", {}).get("algorithm_title", "Statistical Distribution Model"),
+            "metadata": rec.get("metadata", {}),
             "sets_detail": rec.get("sets_detail", [])
         } for rec in records]
 
