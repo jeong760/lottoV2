@@ -41,3 +41,40 @@
 2026-10-08 14:59:51 [INFO] [TestQualityGate]: test_ac_value_calculation passed successfully.
 2026-10-08 14:59:51 [INFO] [TestQualityGate]: Running test_quality_gate_boundaries...
 2026-10-08 14:59:51 [INFO] [TestQualityGate]: test_quality_gate_boundaries passed successfully.
+2026-10-08 15:09:19 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:35 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:35 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:35 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:35 [WARNING] [WorkersModule]: [WorkersModule] Could not import 'LottoWorker': No module named 'numpy'
+2026-10-08 15:09:35 [WARNING] [WorkersModule]: [WorkersModule] Could not import 'AITrainWorker': No module named 'numpy'
+2026-10-08 15:09:35 [INFO] [WorkersModule]: [WorkersModule] Workers package initialization completed.
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [ConfigModule]: Configuration module loaded successfully with centralized logging setup and absolute paths.
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [RepositoriesModule]: [RepositoriesModule] Repositories package initialization completed.
+2026-10-08 15:09:46 [INFO] [DataModule]: [DataModule] Data package initialization completed.
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [WARNING] [CoreModule]: [CoreModule] Failed to inject statistics_engine alias: No module named 'scipy'
+2026-10-08 15:09:46 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [ERROR] [CoreModule]: Failed to load AIEngine: No module named 'core.ai_engine'
+2026-10-08 15:09:46 [ERROR] [CoreModule]: Failed to load AIEngine: No module named 'core.ai_engine'
+2026-10-08 15:09:46 [WARNING] [AIModule]: [AIModule] Could not import 'LottoAILearningModel': No module named 'pandas'
+2026-10-08 15:09:46 [INFO] [AIModule]: [AIModule] AI package initialization completed.
+2026-10-08 15:09:46 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-08 15:09:46 [ERROR] [CoreModule]: Failed to load AIEngine: No module named 'core.ai_engine'
+2026-10-08 15:09:46 [ERROR] [CoreModule]: Failed to load AIEngine: No module named 'core.ai_engine'
+2026-10-08 15:09:46 [WARNING] [WorkersModule]: [WorkersModule] Could not import 'AITrainWorker': No module named 'pandas'
+2026-10-08 15:09:46 [INFO] [WorkersModule]: [WorkersModule] Workers package initialization completed.
+2026-10-08 15:09:46 [INFO] [TestQualityGate]: Running test_ac_value_calculation...
+2026-10-08 15:09:46 [INFO] [TestQualityGate]: test_ac_value_calculation passed successfully.
+2026-10-08 15:09:46 [INFO] [TestQualityGate]: Running test_quality_gate_boundaries...
+2026-10-08 15:09:46 [INFO] [TestQualityGate]: test_quality_gate_boundaries passed successfully.
