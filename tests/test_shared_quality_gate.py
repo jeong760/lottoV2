@@ -18,7 +18,7 @@ def test_quality_gate_strict_and_relaxed_behavior():
 
 def test_quality_gate_worker_profile_constraints():
     latest_draw = [10, 11, 12, 13, 14, 15]
-    valid = [5, 17, 22, 29, 34, 41]
+    valid = [5, 14, 22, 29, 34, 41]
     assert passes_quality_gate(
         valid,
         latest_draw_numbers=latest_draw,
