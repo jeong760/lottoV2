@@ -15,7 +15,9 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButt
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from data.repositories.lotto_repository import LottoRepository
 from core.lotto_evaluator import LottoEvaluator
+from core.reporting.dashboard_reporting import build_backtest_report_lines, build_backtest_report_text
 from utils.logger import setup_logging
+from PyQt5.QtWidgets import QFileDialog, QMessageBox
 
 setup_logging(project_root)
 _log = logging.getLogger("BacktestWidget")
@@ -80,6 +82,7 @@ class BacktestWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.worker = None
+        self.last_result = None
         self.init_ui()
 
     def init_ui(self):
@@ -105,10 +108,18 @@ class BacktestWidget(QWidget):
         self.run_btn.clicked.connect(self.start_backtest)
         btn_layout.addWidget(self.run_btn)
 
+        self.export_btn = QPushButton("Export Backtest Report")
+        self.export_btn.setStyleSheet("background-color: #16a085; color: white; font-weight: bold; padding: 8px; border-radius: 4px;")
+        self.export_btn.setEnabled(False)
+        self.export_btn.clicked.connect(self.export_backtest_report)
+        btn_layout.addWidget(self.export_btn)
+
         layout.addLayout(btn_layout)
 
     def start_backtest(self):
         self.run_btn.setEnabled(False)
+        self.export_btn.setEnabled(False)
+        self.last_result = None
         self.log_box.clear()
         self.log_box.append("Starting rigorous Walk-Forward backtest simulation across recent 50 draws...")
         _log.info("User triggered Walk-Forward backtest simulation.")
@@ -127,68 +138,10 @@ class BacktestWidget(QWidget):
         self.run_btn.setEnabled(True)
         try:
             if result and result.get("status") == "success":
-                test_window = result.get("test_total_draws", 50)
-                algo = result.get("algorithm", {})
-                rand = result.get("random_baseline", {})
-                metric_definition = result.get("metric_definition", {})
-
-                self.log_box.append(f"\n==================================================")
-                self.log_box.append(f" BACKTEST & ROI PERFORMANCE REPORT (Last {test_window} Draws)")
-                self.log_box.append(f"==================================================")
-                
-                self.log_box.append(f"\n[AI Algorithm Model]")
-                if isinstance(metric_definition, dict) and metric_definition:
-                    self.log_box.append(
-                        " - Metric Scope: "
-                        f"{metric_definition.get('precision_recall_scope', 'ticket-level summary')}"
-                    )
-                self.log_box.append(f" - Total Cost: {algo.get('total_cost', 0):,} KRW")
-                self.log_box.append(f" - Total Prize: {algo.get('total_prize', 0):,} KRW")
-                self.log_box.append(f" - Return on Investment (ROI): {algo.get('roi', 0.0)}%")
-                self.log_box.append(f" - Ranks Breakdown: {algo.get('ranks', {})}")
-                algo_metrics = algo.get("metrics", {})
-                if isinstance(algo_metrics, dict):
-                    self.log_box.append(
-                        " - Hit/Match Rates: "
-                        f"Hit={algo_metrics.get('hit_rate', 0.0)}% | "
-                        f"M3={algo_metrics.get('match_3_rate', 0.0)}% | "
-                        f"M4={algo_metrics.get('match_4_rate', 0.0)}% | "
-                        f"M5={algo_metrics.get('match_5_rate', 0.0)}% | "
-                        f"M6={algo_metrics.get('match_6_rate', 0.0)}%"
-                    )
-                    self.log_box.append(
-                        " - Classification Metrics: "
-                        f"Precision={algo_metrics.get('precision', 0.0)}% | "
-                        f"Recall={algo_metrics.get('recall', 0.0)}% | "
-                        f"F1={algo_metrics.get('f1_score', 0.0)}% | "
-                        f"Tickets={algo_metrics.get('ticket_count', 0)} | "
-                        f"Coverage={algo_metrics.get('avg_unique_predictions_per_draw', 0.0)}"
-                    )
-
-                self.log_box.append(f"\n[Random Baseline Comparison]")
-                self.log_box.append(f" - Total Cost: {rand.get('total_cost', 0):,} KRW")
-                self.log_box.append(f" - Total Prize: {rand.get('total_prize', 0):,} KRW")
-                self.log_box.append(f" - Return on Investment (ROI): {rand.get('roi', 0.0)}%")
-                self.log_box.append(f" - Ranks Breakdown: {rand.get('ranks', {})}")
-                rand_metrics = rand.get("metrics", {})
-                if isinstance(rand_metrics, dict):
-                    self.log_box.append(
-                        " - Hit/Match Rates: "
-                        f"Hit={rand_metrics.get('hit_rate', 0.0)}% | "
-                        f"M3={rand_metrics.get('match_3_rate', 0.0)}% | "
-                        f"M4={rand_metrics.get('match_4_rate', 0.0)}% | "
-                        f"M5={rand_metrics.get('match_5_rate', 0.0)}% | "
-                        f"M6={rand_metrics.get('match_6_rate', 0.0)}%"
-                    )
-                    self.log_box.append(
-                        " - Classification Metrics: "
-                        f"Precision={rand_metrics.get('precision', 0.0)}% | "
-                        f"Recall={rand_metrics.get('recall', 0.0)}% | "
-                        f"F1={rand_metrics.get('f1_score', 0.0)}% | "
-                        f"Tickets={rand_metrics.get('ticket_count', 0)} | "
-                        f"Coverage={rand_metrics.get('avg_unique_predictions_per_draw', 0.0)}"
-                    )
-                self.log_box.append(f"\n==================================================")
+                self.last_result = result
+                self.export_btn.setEnabled(True)
+                for line in build_backtest_report_lines(result):
+                    self.log_box.append(line)
                 _log.info("Backtest results successfully rendered on UI dashboard.")
             else:
                 error_msg = result.get('msg', 'Unknown error') if isinstance(result, dict) else 'Invalid response format'
@@ -197,3 +150,28 @@ class BacktestWidget(QWidget):
         finally:
             if self.worker:
                 self.worker = None
+
+    def export_backtest_report(self):
+        try:
+            if not isinstance(self.last_result, dict) or self.last_result.get("status") != "success":
+                QMessageBox.warning(self, "Export Warning", "No successful backtest result is available to export.")
+                return
+
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Backtest Report",
+                "lotto_backtest_report.txt",
+                "Text Files (*.txt);;All Files (*)",
+            )
+            if not file_path:
+                return
+
+            report_text = build_backtest_report_text(self.last_result)
+            with open(file_path, mode="w", encoding="utf-8") as f:
+                f.write(report_text)
+
+            QMessageBox.information(self, "Success", f"Backtest report exported successfully:\n{file_path}")
+            _log.info("Backtest report exported: %s", file_path)
+        except Exception as e:
+            _log.error(f"Failed to export backtest report: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to export backtest report: {e}")

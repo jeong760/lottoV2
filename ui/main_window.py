@@ -48,6 +48,7 @@ from ui.widgets.statistical_metrics_widget import StatisticalMetricsWidget
 from ui.widgets.decade_dist_widget import DecadeDistWidget
 from ui.widgets.consecutive_widget import ConsecutiveWidget
 from ui.widgets.ai_training_widget import AITrainingWidget
+from ui.widgets.real_time_analytics_widget import RealTimeAnalyticsWidget
 
 
 class LottoMainWindow(QMainWindow):
@@ -242,6 +243,9 @@ class LottoMainWindow(QMainWindow):
         
         self.generated_sets_widget = GeneratedSetsWidget()
         self.tab_widget.addTab(self.generated_sets_widget, "Generated Sets")
+
+        self.real_time_analytics_widget = RealTimeAnalyticsWidget()
+        self.tab_widget.addTab(self.real_time_analytics_widget, "Real-Time Analytics")
 
         self.backtest_widget = BacktestWidget()
         self.tab_widget.addTab(self.backtest_widget, "Algorithm Backtesting")

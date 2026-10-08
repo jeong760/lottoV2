@@ -26,6 +26,11 @@ class StatisticsWidgetConnector:
             decade_data = StatisticsEngine.analyze_decade_and_digit_distribution(history_data)
             chi2_data = StatisticsEngine.chi_square_goodness_of_fit(history_data)
             phase_c_data = StatisticsEngine.build_phase_c_analytics(history_data, lookback_draws=80)
+            comprehensive_stats = StatisticsEngine.get_comprehensive_statistics()
+            if not isinstance(comprehensive_stats, dict):
+                comprehensive_stats = {}
+            if not comprehensive_stats:
+                comprehensive_stats = {"phase_c_analytics": phase_c_data}
 
             if hasattr(self.main_window, 'decade_dist_widget') and self.main_window.decade_dist_widget:
                 if hasattr(self.main_window.decade_dist_widget, 'update_distribution_data'):
@@ -38,6 +43,10 @@ class StatisticsWidgetConnector:
             if hasattr(self.main_window, 'statistical_metrics_widget') and self.main_window.statistical_metrics_widget:
                 if hasattr(self.main_window.statistical_metrics_widget, 'update_chi_square_metrics'):
                     self.main_window.statistical_metrics_widget.update_chi_square_metrics(chi2_data)
+
+            if hasattr(self.main_window, 'real_time_analytics_widget') and self.main_window.real_time_analytics_widget:
+                if hasattr(self.main_window.real_time_analytics_widget, 'update_from_statistics'):
+                    self.main_window.real_time_analytics_widget.update_from_statistics(comprehensive_stats)
 
             if hasattr(self.main_window, 'live_console_widget') and self.main_window.live_console_widget:
                 p_val_str = f"{chi2_data.get('p_value', 1.0):.4f}"
