@@ -202,6 +202,97 @@ def test_generation_history_batch_id_column_fallback(monkeypatch, tmp_path):
     assert all_history[0].get("generation_batch_id") == batch_id
 
 
+def test_generation_history_batch_id_legacy_metadata_backfill(monkeypatch, tmp_path):
+    tmp_db_path = tmp_path / "phase_k_generation_history_legacy_backfill.db"
+    monkeypatch.setattr(
+        LottoDBHelper,
+        "_get_db_path",
+        staticmethod(lambda: str(tmp_db_path)),
+    )
+
+    conn = sqlite3.connect(str(tmp_db_path))
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE generation_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT,
+            set_count INTEGER,
+            algorithm_title TEXT,
+            round_info TEXT DEFAULT 'Live Draw',
+            metadata_json TEXT DEFAULT '{}'
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE generated_sets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER,
+            created_at TEXT,
+            round_info TEXT,
+            set_no INTEGER,
+            algorithm_title TEXT,
+            numbers TEXT,
+            match_count INTEGER DEFAULT 0,
+            rounds_info TEXT DEFAULT '-',
+            probability_str TEXT,
+            num1 INTEGER, num2 INTEGER, num3 INTEGER,
+            num4 INTEGER, num5 INTEGER, num6 INTEGER,
+            bonus_no INTEGER
+        )
+        """
+    )
+
+    legacy_batch_id = "phase-k-legacy-batch-001"
+    cur.execute(
+        """
+        INSERT INTO generation_sessions (created_at, set_count, algorithm_title, round_info, metadata_json)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (
+            "2026-10-08 00:00:00",
+            1,
+            "Legacy Batch Algo",
+            "Live Draw",
+            json.dumps({
+                "algorithm_title": "Legacy Batch Algo",
+                "generation_batch_id": legacy_batch_id,
+            }, ensure_ascii=False),
+        ),
+    )
+    session_id = cur.lastrowid
+    cur.execute(
+        """
+        INSERT INTO generated_sets (
+            session_id, created_at, round_info, set_no, algorithm_title,
+            numbers, match_count, rounds_info, probability_str,
+            num1, num2, num3, num4, num5, num6, bonus_no
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            session_id,
+            "2026-10-08 00:00:00",
+            "Live Draw",
+            1,
+            "Legacy Batch Algo",
+            json.dumps([3, 9, 14, 22, 35, 41, 7], ensure_ascii=False),
+            0,
+            "-",
+            "0.00%",
+            3, 9, 14, 22, 35, 41, 7,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    sessions = LottoDBHelper.get_generation_sessions_by_batch_id(legacy_batch_id)
+    assert isinstance(sessions, list)
+    assert len(sessions) == 1
+    assert sessions[0].get("generation_batch_id") == legacy_batch_id
+    assert sessions[0].get("algorithm_title") == "Legacy Batch Algo"
+
+
 def test_generation_batch_history_groups_sessions(monkeypatch, tmp_path):
     tmp_db_path = tmp_path / "phase_h_generation_history.db"
     monkeypatch.setattr(
@@ -264,6 +355,66 @@ def test_generation_batch_history_groups_sessions(monkeypatch, tmp_path):
     assert fallback_row is not None
     assert fallback_row.get("is_fallback_batch") is True
     assert fallback_row.get("session_count") == 1
+
+
+def test_generation_history_resilient_to_invalid_num_columns(monkeypatch, tmp_path):
+    tmp_db_path = tmp_path / "phase_k_generation_history_invalid_nums.db"
+    monkeypatch.setattr(
+        LottoDBHelper,
+        "_get_db_path",
+        staticmethod(lambda: str(tmp_db_path)),
+    )
+
+    LottoDBHelper._ensure_tables()
+    conn = sqlite3.connect(str(tmp_db_path))
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO generation_sessions (created_at, set_count, algorithm_title, round_info, metadata_json, generation_batch_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            "2026-10-08 00:00:00",
+            1,
+            "Invalid Num Columns",
+            "Live Draw",
+            json.dumps({"algorithm_title": "Invalid Num Columns"}, ensure_ascii=False),
+            "phase-k-invalid-num",
+        ),
+    )
+    session_id = cur.lastrowid
+    cur.execute(
+        """
+        INSERT INTO generated_sets (
+            session_id, created_at, round_info, set_no, algorithm_title,
+            numbers, match_count, rounds_info, probability_str,
+            num1, num2, num3, num4, num5, num6, bonus_no
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            session_id,
+            "2026-10-08 00:00:00",
+            "Live Draw",
+            1,
+            "Invalid Num Columns",
+            json.dumps([4, 12, 18, 27, 33, 41, 8], ensure_ascii=False),
+            0,
+            "-",
+            "0.00%",
+            4, 12, "INVALID", 27, 33, 41, 8,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    loaded = LottoDBHelper.load_generation_history()
+    assert loaded
+    sets_detail = loaded[0].get("sets_detail", [])
+    assert sets_detail
+    nums = sets_detail[0].get("numbers", [])
+    assert isinstance(nums, list)
+    assert len(nums) == 6
+    assert nums == [4, 12, 18, 27, 33, 41]
 
 
 def test_generation_history_max_sessions_scope(monkeypatch, tmp_path):

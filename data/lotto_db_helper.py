@@ -48,6 +48,53 @@ class LottoDBHelper:
         return datetime.now(kst).strftime("%Y-%m-%d %H:%M:%S")
 
     @classmethod
+    def _backfill_generation_batch_ids_from_metadata(cls, cursor):
+        """Backfills empty generation_batch_id column values from metadata_json for legacy rows."""
+        try:
+            cursor.execute("""
+                SELECT id, metadata_json
+                FROM generation_sessions
+                WHERE (generation_batch_id IS NULL OR generation_batch_id = '')
+                  AND metadata_json IS NOT NULL
+                  AND metadata_json != ''
+                  AND metadata_json != '{}'
+            """)
+            legacy_rows = cursor.fetchall()
+        except Exception:
+            legacy_rows = []
+
+        if not legacy_rows:
+            return
+
+        updates = []
+        for row in legacy_rows:
+            try:
+                session_id = int(row[0])
+            except Exception:
+                continue
+            raw_meta = row[1]
+            if not raw_meta:
+                continue
+            try:
+                parsed = json.loads(raw_meta)
+            except Exception:
+                parsed = {}
+            if not isinstance(parsed, dict):
+                continue
+            batch_id = str(parsed.get("generation_batch_id") or "").strip()
+            if batch_id:
+                updates.append((batch_id, session_id))
+
+        if updates:
+            try:
+                cursor.executemany(
+                    "UPDATE generation_sessions SET generation_batch_id = ? WHERE id = ?",
+                    updates,
+                )
+            except Exception:
+                pass
+
+    @classmethod
     def _ensure_tables(cls):
         db_path = cls._get_db_path()
         with cls._lock:
@@ -121,6 +168,8 @@ class LottoDBHelper:
                     cursor.execute("CREATE INDEX IF NOT EXISTS idx_generated_sets_session_set_no ON generated_sets(session_id, set_no)")
                 except sqlite3.OperationalError:
                     pass
+
+                cls._backfill_generation_batch_ids_from_metadata(cursor)
 
                 # 3. Official history tables creation
                 cursor.execute("""
@@ -457,21 +506,50 @@ class LottoDBHelper:
                     s_id = row["session_id"]
                     if s_id not in sets_by_session:
                         sets_by_session[s_id] = []
-                    
+                     
                     nums = [row["num1"], row["num2"], row["num3"], row["num4"], row["num5"], row["num6"]]
-                    nums = [n for n in nums if n is not None]
-                    if not nums and row["numbers"]:
+                    safe_nums = []
+                    for raw in nums:
+                        if raw is None:
+                            continue
                         try:
-                            nums = json.loads(row["numbers"])[:6]
+                            val = int(raw)
+                        except Exception:
+                            continue
+                        if 1 <= val <= 45:
+                            safe_nums.append(val)
+
+                    if len(safe_nums) < 6 and row["numbers"]:
+                        try:
+                            parsed_nums = json.loads(row["numbers"])
+                            if isinstance(parsed_nums, list):
+                                for raw in parsed_nums[:6]:
+                                    try:
+                                        val = int(raw)
+                                    except Exception:
+                                        continue
+                                    if 1 <= val <= 45:
+                                        safe_nums.append(val)
                         except Exception:
                             pass
-                    
+
+                    # keep order-stable de-dup and cap to 6 base numbers
+                    dedup_nums = []
+                    seen_num = set()
+                    for val in safe_nums:
+                        if val in seen_num:
+                            continue
+                        seen_num.add(val)
+                        dedup_nums.append(val)
+                        if len(dedup_nums) >= 6:
+                            break
+                     
                     bonus = row["bonus_no"] or 0
                     rounds_info = row["rounds_info"] if "rounds_info" in row.keys() else "-"
 
                     sets_by_session[s_id].append({
                         "set_no": row["set_no"] or 1,
-                        "numbers": sorted([int(n) for n in nums]),
+                        "numbers": sorted(dedup_nums),
                         "bonus_no": int(bonus),
                         "match_count": row["match_count"] or 0,
                         "rounds_info": rounds_info if rounds_info else "-"
