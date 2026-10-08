@@ -245,3 +245,120 @@ def build_backtest_report_lines(result: Dict[str, Any]) -> List[str]:
 
 def build_backtest_report_text(result: Dict[str, Any]) -> str:
     return "\n".join(build_backtest_report_lines(result))
+
+
+def _format_score_weight_profile(profile: Dict[str, Any]) -> str:
+    if not isinstance(profile, dict) or not profile:
+        return "-"
+    ordered_keys = [
+        "probability",
+        "pattern",
+        "ai",
+        "genetic",
+        "confidence_probability",
+        "confidence_ensemble",
+    ]
+    parts: List[str] = []
+    for key in ordered_keys:
+        if key in profile:
+            parts.append(f"{key}={_safe_float(profile.get(key), 0.0):.4f}")
+    if not parts:
+        for key, value in profile.items():
+            parts.append(f"{key}={_safe_float(value, 0.0):.4f}")
+    return ", ".join(parts) if parts else "-"
+
+
+def build_generation_batch_report_lines(batch_summary: Dict[str, Any], sessions: List[Dict[str, Any]]) -> List[str]:
+    """
+    Builds reusable text lines for generation batch explainability/session-comparison reporting.
+    """
+    batch_summary = batch_summary if isinstance(batch_summary, dict) else {}
+    sessions = sessions if isinstance(sessions, list) else []
+
+    batch_id = str(batch_summary.get("batch_id") or "-")
+    session_count = _safe_int(batch_summary.get("session_count"), len(sessions))
+    set_count = _safe_int(batch_summary.get("set_count"), 0)
+    first_timestamp = str(batch_summary.get("first_timestamp") or "-")
+    latest_timestamp = str(batch_summary.get("latest_timestamp") or "-")
+    has_top_ranked = bool(batch_summary.get("has_top_ranked", False))
+    fallback_batch = bool(batch_summary.get("is_fallback_batch", False))
+
+    algorithm_titles = batch_summary.get("algorithm_titles", [])
+    if not isinstance(algorithm_titles, list) or not algorithm_titles:
+        discovered_titles: List[str] = []
+        for session in sessions:
+            if not isinstance(session, dict):
+                continue
+            title = str(session.get("algorithm_title") or "")
+            metadata = session.get("metadata", {})
+            if not title and isinstance(metadata, dict):
+                title = str(metadata.get("algorithm_title") or "")
+            if title and title not in discovered_titles:
+                discovered_titles.append(title)
+        algorithm_titles = discovered_titles
+
+    score_profile = batch_summary.get("score_weight_profile", {})
+    if not isinstance(score_profile, dict) or not score_profile:
+        for session in sessions:
+            if not isinstance(session, dict):
+                continue
+            metadata = session.get("metadata", {})
+            if not isinstance(metadata, dict):
+                continue
+            profile = metadata.get("score_weight_profile", {})
+            if isinstance(profile, dict) and profile:
+                score_profile = profile
+                break
+
+    lines: List[str] = []
+    lines.append("")
+    lines.append("==================================================")
+    lines.append(" GENERATION BATCH EXPLAINABILITY REPORT")
+    lines.append("==================================================")
+    lines.append("")
+    lines.append(f"[Batch Summary] ID: {batch_id}")
+    lines.append(f" - Fallback Batch: {'Yes' if fallback_batch else 'No'}")
+    lines.append(f" - Sessions: {session_count}")
+    lines.append(f" - Generated Sets: {set_count}")
+    lines.append(f" - First Timestamp: {first_timestamp}")
+    lines.append(f" - Latest Timestamp: {latest_timestamp}")
+    lines.append(f" - Has Top-Ranked Metadata: {'Yes' if has_top_ranked else 'No'}")
+    lines.append(
+        " - Algorithms: "
+        + (", ".join(str(v) for v in algorithm_titles) if algorithm_titles else "-")
+    )
+    lines.append(f" - Score Weight Profile: {_format_score_weight_profile(score_profile)}")
+    lines.append("")
+    lines.append("[Session Comparison]")
+
+    normalized_sessions: List[Dict[str, Any]] = [s for s in sessions if isinstance(s, dict)]
+    normalized_sessions.sort(key=lambda s: str(s.get("timestamp") or ""))
+    if not normalized_sessions:
+        lines.append(" - No sessions found for this batch.")
+    else:
+        for idx, session in enumerate(normalized_sessions, start=1):
+            metadata = session.get("metadata", {})
+            if not isinstance(metadata, dict):
+                metadata = {}
+            session_id = _safe_int(session.get("id", 0), 0)
+            ts = str(session.get("timestamp") or "-")
+            title = str(session.get("algorithm_title") or metadata.get("algorithm_title") or "-")
+            set_len = len(session.get("sets_detail", [])) if isinstance(session.get("sets_detail"), list) else 0
+            confidence = _safe_float(metadata.get("confidence_score", 0.0), 0.0)
+            top_ranked = metadata.get("top_ranked_combinations", [])
+            top_ranked_count = len(top_ranked) if isinstance(top_ranked, list) else 0
+            leading_algos = metadata.get("leading_algorithms", [])
+            leading_text = ", ".join(str(v) for v in leading_algos[:3]) if isinstance(leading_algos, list) and leading_algos else "-"
+
+            lines.append(
+                f" {idx}. Session #{session_id} | {ts} | Sets={set_len} | Confidence={confidence:.2f} | TopRanked={top_ranked_count}"
+            )
+            lines.append(f"    - Algorithm: {title}")
+            lines.append(f"    - Leading: {leading_text}")
+    lines.append("")
+    lines.append("==================================================")
+    return lines
+
+
+def build_generation_batch_report_text(batch_summary: Dict[str, Any], sessions: List[Dict[str, Any]]) -> str:
+    return "\n".join(build_generation_batch_report_lines(batch_summary, sessions))

@@ -10,6 +10,8 @@ if project_root not in sys.path:
 from core.reporting.dashboard_reporting import (
     build_backtest_report_lines,
     build_backtest_report_text,
+    build_generation_batch_report_lines,
+    build_generation_batch_report_text,
     build_realtime_dashboard_payload,
 )
 
@@ -105,3 +107,57 @@ def test_build_backtest_report_lines_success_and_text():
 def test_build_backtest_report_lines_error():
     lines = build_backtest_report_lines({"status": "Error", "msg": "failure"})
     assert lines == ["Backtest failed: failure"]
+
+
+def test_build_generation_batch_report_lines_and_text():
+    batch_summary = {
+        "batch_id": "batch-abc123",
+        "is_fallback_batch": False,
+        "session_count": 2,
+        "set_count": 2,
+        "algorithm_titles": ["Advanced AI Ensemble"],
+        "first_timestamp": "2026-10-08 10:00:00",
+        "latest_timestamp": "2026-10-08 10:01:00",
+        "has_top_ranked": True,
+        "score_weight_profile": {
+            "probability": 0.33,
+            "pattern": 0.22,
+            "ai": 0.24,
+            "genetic": 0.21,
+            "confidence_probability": 0.44,
+            "confidence_ensemble": 0.56,
+        },
+    }
+    sessions = [
+        {
+            "id": 101,
+            "timestamp": "2026-10-08 10:00:00",
+            "algorithm_title": "Advanced AI Ensemble",
+            "sets_detail": [{"set_no": 1}],
+            "metadata": {
+                "confidence_score": 93.2,
+                "top_ranked_combinations": [{"rank": 1}],
+                "leading_algorithms": ["A", "B", "C"],
+            },
+        },
+        {
+            "id": 102,
+            "timestamp": "2026-10-08 10:01:00",
+            "algorithm_title": "Advanced AI Ensemble",
+            "sets_detail": [{"set_no": 1}],
+            "metadata": {
+                "confidence_score": 91.7,
+                "top_ranked_combinations": [{"rank": 1}, {"rank": 2}],
+                "leading_algorithms": ["A", "B"],
+            },
+        },
+    ]
+
+    lines = build_generation_batch_report_lines(batch_summary, sessions)
+    text = build_generation_batch_report_text(batch_summary, sessions)
+    assert isinstance(lines, list) and len(lines) > 10
+    assert any("GENERATION BATCH EXPLAINABILITY REPORT" in line for line in lines)
+    assert any("batch-abc123" in line for line in lines)
+    assert "Session #101" in text
+    assert "Session #102" in text
+    assert "Score Weight Profile" in text

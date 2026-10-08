@@ -23,6 +23,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QFont, QBrush
 from data.lotto_db_helper import LottoDBHelper
 from core.lotto_evaluator import LottoEvaluator
+from core.reporting import build_generation_batch_report_text
 
 try:
     import pandas as pd
@@ -307,6 +308,16 @@ class GeneratedSetsWidget(QWidget):
         """)
         clear_filter_btn.clicked.connect(self.clear_batch_filter)
 
+        export_batch_report_btn = QPushButton("Export Batch Report")
+        export_batch_report_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2c3e50; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #34495e; }
+        """)
+        export_batch_report_btn.clicked.connect(self.export_batch_report)
+
         top_layout.addWidget(refresh_btn)
         top_layout.addWidget(select_all_btn)
         top_layout.addWidget(deselect_all_btn)
@@ -317,6 +328,7 @@ class GeneratedSetsWidget(QWidget):
         top_layout.addWidget(details_btn)
         top_layout.addWidget(filter_batch_btn)
         top_layout.addWidget(clear_filter_btn)
+        top_layout.addWidget(export_batch_report_btn)
         top_layout.addStretch()
         layout.addLayout(top_layout)
 
@@ -743,6 +755,95 @@ class GeneratedSetsWidget(QWidget):
         except Exception as e:
             _log.error(f"Failed to show session details: {e}", exc_info=True)
             QMessageBox.critical(self, "Error", f"Failed to show session details: {e}")
+
+    def export_batch_report(self):
+        try:
+            target_row = self._resolve_target_row()
+            if target_row < 0:
+                QMessageBox.warning(self, "Export Warning", "Please select a row (or check one) to export batch report.")
+                return
+
+            id_item = self.table.item(target_row, 1)
+            session_id = int(id_item.data(Qt.UserRole)) if id_item is not None and id_item.data(Qt.UserRole) else 0
+            if session_id <= 0:
+                QMessageBox.warning(self, "Export Warning", "Invalid session id for selected row.")
+                return
+
+            all_sessions = LottoDBHelper.get_all_generation_history() if hasattr(LottoDBHelper, "get_all_generation_history") else []
+            if not isinstance(all_sessions, list) or not all_sessions:
+                QMessageBox.warning(self, "Export Warning", "No session history available.")
+                return
+
+            selected_session = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
+            if not isinstance(selected_session, dict):
+                QMessageBox.warning(self, "Export Warning", "Could not find selected session payload.")
+                return
+
+            batch_id = self._get_row_batch_id(target_row)
+            if not batch_id:
+                batch_id = str(
+                    selected_session.get("generation_batch_id")
+                    or (selected_session.get("metadata", {}) if isinstance(selected_session.get("metadata"), dict) else {}).get("generation_batch_id")
+                    or f"session-{session_id}"
+                ).strip()
+
+            batch_summaries = LottoDBHelper.get_generation_batch_history() if hasattr(LottoDBHelper, "get_generation_batch_history") else []
+            batch_summary = next((row for row in batch_summaries if str(row.get("batch_id", "")) == batch_id), None)
+            if not isinstance(batch_summary, dict):
+                batch_summary = {
+                    "batch_id": batch_id,
+                    "is_fallback_batch": str(batch_id).startswith("session-"),
+                    "session_count": 1,
+                    "set_count": len(selected_session.get("sets_detail", [])) if isinstance(selected_session.get("sets_detail"), list) else 0,
+                    "algorithm_titles": [selected_session.get("algorithm_title", "")],
+                    "first_timestamp": selected_session.get("timestamp", ""),
+                    "latest_timestamp": selected_session.get("timestamp", ""),
+                    "has_top_ranked": bool((selected_session.get("metadata", {}) if isinstance(selected_session.get("metadata"), dict) else {}).get("top_ranked_combinations")),
+                    "score_weight_profile": (selected_session.get("metadata", {}) if isinstance(selected_session.get("metadata"), dict) else {}).get("score_weight_profile", {}),
+                }
+
+            sessions_for_batch = []
+            for session in all_sessions:
+                if not isinstance(session, dict):
+                    continue
+                candidate_batch = str(
+                    session.get("generation_batch_id")
+                    or (session.get("metadata", {}) if isinstance(session.get("metadata"), dict) else {}).get("generation_batch_id")
+                    or ""
+                ).strip()
+                if candidate_batch and candidate_batch == batch_id:
+                    sessions_for_batch.append(session)
+
+            if not sessions_for_batch:
+                if str(batch_id).startswith("session-"):
+                    try:
+                        fallback_id = int(str(batch_id).replace("session-", ""))
+                    except Exception:
+                        fallback_id = session_id
+                    sessions_for_batch = [s for s in all_sessions if int(s.get("id", 0) or 0) == fallback_id]
+
+            if not sessions_for_batch:
+                sessions_for_batch = [selected_session]
+
+            report_text = build_generation_batch_report_text(batch_summary, sessions_for_batch)
+            default_name = f"lotto_generation_batch_report_{batch_id[:12] if batch_id else session_id}.txt"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Generation Batch Report",
+                default_name,
+                "Text Files (*.txt);;All Files (*)",
+            )
+            if not file_path:
+                return
+
+            with open(file_path, mode="w", encoding="utf-8") as f:
+                f.write(report_text)
+
+            QMessageBox.information(self, "Success", f"Successfully exported batch report to:\n{file_path}")
+            _log.info("Exported generation batch report: batch_id=%s path=%s", batch_id, file_path)
+        except Exception as e:
+            _log.error(f"Failed to export batch report: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to export batch report: {e}")
 
     def export_top_ranked_session(self):
         try:
