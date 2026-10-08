@@ -40,6 +40,9 @@ def test_backtest_includes_extended_metrics():
     )
 
     assert result.get("status") == "success"
+    metric_definition = result.get("metric_definition", {})
+    assert isinstance(metric_definition, dict)
+    assert "precision_recall_scope" in metric_definition
 
     for key in ("algorithm", "random_baseline"):
         section = result.get(key, {})
@@ -56,6 +59,7 @@ def test_backtest_includes_extended_metrics():
             "precision",
             "recall",
             "f1_score",
+            "avg_unique_predictions_per_draw",
             "roi",
         }
         assert required.issubset(set(metrics.keys()))
@@ -63,3 +67,4 @@ def test_backtest_includes_extended_metrics():
         assert metrics["ticket_count"] == 24  # 8 draws * 3 sets
         for pct_key in ("hit_rate", "match_3_rate", "match_4_rate", "match_5_rate", "match_6_rate", "precision", "recall", "f1_score"):
             assert 0.0 <= float(metrics[pct_key]) <= 100.0
+        assert float(metrics["avg_unique_predictions_per_draw"]) >= 0.0

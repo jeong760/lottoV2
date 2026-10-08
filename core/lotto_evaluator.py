@@ -286,6 +286,7 @@ class LottoEvaluator:
         algo_tp = 0
         algo_fp = 0
         algo_fn = 0
+        algo_union_sizes: List[int] = []
 
         rand_cost = 0
         rand_prize = 0
@@ -294,6 +295,7 @@ class LottoEvaluator:
         rand_tp = 0
         rand_fp = 0
         rand_fn = 0
+        rand_union_sizes: List[int] = []
 
         for draw in test_draws:
             raw_winning = draw.get("numbers", [])
@@ -358,6 +360,7 @@ class LottoEvaluator:
             algo_tp += len(algo_predicted_union.intersection(winning_nums))
             algo_fp += len(algo_predicted_union.difference(winning_nums))
             algo_fn += len(winning_nums.difference(algo_predicted_union))
+            algo_union_sizes.append(len(algo_predicted_union))
 
             # Evaluate random baseline sets
             rand_predicted_union = set()
@@ -380,6 +383,7 @@ class LottoEvaluator:
             rand_tp += len(rand_predicted_union.intersection(winning_nums))
             rand_fp += len(rand_predicted_union.difference(winning_nums))
             rand_fn += len(winning_nums.difference(rand_predicted_union))
+            rand_union_sizes.append(len(rand_predicted_union))
 
         algo_roi = (algo_prize / algo_cost) * 100 if algo_cost > 0 else 0.0
         rand_roi = (rand_prize / rand_cost) * 100 if rand_cost > 0 else 0.0
@@ -405,6 +409,10 @@ class LottoEvaluator:
             "precision": algo_precision,
             "recall": algo_recall,
             "f1_score": algo_f1,
+            "avg_unique_predictions_per_draw": round(
+                float(sum(algo_union_sizes)) / float(len(algo_union_sizes)),
+                4,
+            ) if algo_union_sizes else 0.0,
             "roi": round(algo_roi, 2),
         }
 
@@ -424,6 +432,10 @@ class LottoEvaluator:
             "precision": rand_precision,
             "recall": rand_recall,
             "f1_score": rand_f1,
+            "avg_unique_predictions_per_draw": round(
+                float(sum(rand_union_sizes)) / float(len(rand_union_sizes)),
+                4,
+            ) if rand_union_sizes else 0.0,
             "roi": round(rand_roi, 2),
         }
 
@@ -433,6 +445,14 @@ class LottoEvaluator:
             "train_range": f"1 ~ {start_draw - 1}",
             "test_start_draw": start_draw,
             "test_total_draws": len(test_draws),
+            "metric_definition": {
+                "precision_recall_scope": "number-level coverage per draw (unique predicted numbers vs 6 winning numbers)",
+                "tp": "count of predicted unique numbers that appear in the winning 6 numbers",
+                "fp": "count of predicted unique numbers not present in the winning 6 numbers",
+                "fn": "count of winning 6 numbers not covered by predicted unique numbers",
+                "hit_rate": "percentage of generated tickets with 3 or more matches",
+                "match_n_rate": "ticket-level percentage for exactly N matches (N=3,4,5,6)",
+            },
             "algorithm": {
                 "total_cost": algo_cost,
                 "total_prize": algo_prize,

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # core/engines/statistics_engine.py
 import logging
+import math
 import numpy as np
 import scipy.stats as stats
 from itertools import combinations
@@ -184,7 +185,8 @@ class StatisticsEngine:
                 else:
                     bias_analysis[i] = "Balanced (Normal distribution)"
 
-            return {
+            phase_c_analytics = StatisticsEngine.build_phase_c_analytics(sorted_history)
+            base_payload = {
                 "total_draws": int(total_draws),
                 "sum_statistics": {"average": round(sum_avg, 2), "min": sum_min, "max": sum_max},
                 "odd_even_distribution": odd_count_map if odd_count_map else {"Odd 3 : Even 3": 100},
@@ -202,8 +204,12 @@ class StatisticsEngine:
                     "p_value": float(p_value),
                     "is_uniformly_distributed": bool(p_value > 0.05),
                     "bias_status": bias_analysis
-                }
+                },
+                "phase_c_analytics": phase_c_analytics,
             }
+            if isinstance(phase_c_analytics, dict):
+                base_payload.update(phase_c_analytics)
+            return base_payload
 
         except Exception as e:
             # [Defensive Improvement 2] 로깅 예외 발생 시에도 앱 전체 크래시를 막고 폴백 반환
@@ -296,9 +302,350 @@ class StatisticsEngine:
             return {"p_value": 1.0, "is_uniformly_distributed": True, "chi2_stat": 0.0}
 
     @staticmethod
+    def build_phase_c_analytics(history_data: List[Dict[str, Any]], lookback_draws: int = 120) -> Dict[str, Any]:
+        """
+        Builds Phase-C analytics package:
+        - Hot/Cold/Delayed/Overdue
+        - Frequent pairs/triplets, associations, network
+        - Trend, cycle, repeat, and gap prediction signals
+        """
+        empty_payload = {
+            "hot_numbers": [],
+            "cold_numbers": [],
+            "delayed_numbers": [],
+            "overdue_numbers": [],
+            "frequent_pairs": [],
+            "frequent_triplets": [],
+            "number_associations": {"edges": [], "top_partners": {}},
+            "number_network": {"central_numbers": [], "edge_count": 0, "density": 0.0},
+            "historical_trends": {"window_size": 0, "rising_numbers": [], "falling_numbers": []},
+            "cycle_detection": {"stable_cycles": [], "avg_interval_map": {}},
+            "repeat_prediction": {
+                "expected_repeat_count": 0.0,
+                "historical_repeat_rate_pct": 0.0,
+                "last_draw_repeat_probabilities": [],
+            },
+            "gap_prediction": {"next_draw_due_numbers": []},
+        }
+        try:
+            if not history_data:
+                return empty_payload
+
+            sorted_history = sorted(
+                history_data,
+                key=lambda x: int(x.get("draw") or x.get("draw_no") or x.get("drwNo", 0)) if isinstance(x, dict) else 0,
+            )
+
+            normalized = []
+            for idx, draw in enumerate(sorted_history, start=1):
+                if not isinstance(draw, dict):
+                    continue
+                try:
+                    draw_no = int(draw.get("draw") or draw.get("draw_no") or draw.get("drwNo") or idx)
+                except (ValueError, TypeError):
+                    draw_no = idx
+
+                raw_nums = draw.get("numbers", [])
+                if not raw_nums:
+                    raw_nums = [draw.get(f"num{i}") or draw.get(f"drwtNo{i}") for i in range(1, 7)]
+
+                valid_nums = []
+                for val in raw_nums:
+                    if val is None:
+                        continue
+                    try:
+                        iv = int(val)
+                    except (ValueError, TypeError):
+                        continue
+                    if 1 <= iv <= 45:
+                        valid_nums.append(iv)
+
+                valid_nums = sorted(set(valid_nums))
+                if len(valid_nums) == 6:
+                    normalized.append((draw_no, valid_nums))
+
+            if len(normalized) < 2:
+                return empty_payload
+
+            recent = normalized[-max(8, int(lookback_draws)):]
+            recent_draw_count = max(1, len(recent))
+            full_draw_count = len(normalized)
+
+            recent_counter = Counter()
+            full_pair_counter = Counter()
+            full_triplet_counter = Counter()
+            last_seen = {i: None for i in range(1, 46)}
+            interval_map = defaultdict(list)
+
+            for draw_no, numbers in normalized:
+                for n in numbers:
+                    if last_seen[n] is not None:
+                        interval_map[n].append(int(draw_no - last_seen[n]))
+                    last_seen[n] = draw_no
+                for pair in combinations(numbers, 2):
+                    full_pair_counter[pair] += 1
+                for triplet in combinations(numbers, 3):
+                    full_triplet_counter[triplet] += 1
+
+            for _, numbers in recent:
+                for n in numbers:
+                    recent_counter[n] += 1
+
+            hot_numbers = [
+                {
+                    "number": int(num),
+                    "count": int(cnt),
+                    "rate_pct": round((float(cnt) / float(recent_draw_count)) * 100.0, 4),
+                }
+                for num, cnt in sorted(recent_counter.items(), key=lambda x: (-x[1], x[0]))[:10]
+            ]
+            cold_numbers = [
+                {
+                    "number": int(num),
+                    "count": int(cnt),
+                    "rate_pct": round((float(cnt) / float(recent_draw_count)) * 100.0, 4),
+                }
+                for num, cnt in sorted(((n, recent_counter.get(n, 0)) for n in range(1, 46)), key=lambda x: (x[1], x[0]))[:10]
+            ]
+
+            latest_draw_no = normalized[-1][0]
+            delayed_numbers = []
+            overdue_numbers = []
+            avg_interval_map = {}
+
+            for num in range(1, 46):
+                seen_draw = last_seen.get(num)
+                current_gap = int(latest_draw_no - seen_draw) if seen_draw is not None else int(latest_draw_no)
+                intervals = interval_map.get(num, [])
+                mean_interval = float(np.mean(intervals)) if intervals else 0.0
+                avg_interval_map[num] = round(mean_interval, 4)
+                if mean_interval <= 0:
+                    continue
+                gap_ratio = float(current_gap / mean_interval) if mean_interval > 0 else 0.0
+                if current_gap > mean_interval:
+                    delayed_numbers.append(
+                        {
+                            "number": int(num),
+                            "current_gap": int(current_gap),
+                            "expected_gap": round(mean_interval, 4),
+                            "gap_ratio": round(gap_ratio, 4),
+                        }
+                    )
+                if current_gap >= (mean_interval * 1.5):
+                    overdue_numbers.append(
+                        {
+                            "number": int(num),
+                            "current_gap": int(current_gap),
+                            "expected_gap": round(mean_interval, 4),
+                            "gap_ratio": round(gap_ratio, 4),
+                        }
+                    )
+
+            delayed_numbers.sort(key=lambda x: (-x["gap_ratio"], -x["current_gap"], x["number"]))
+            overdue_numbers.sort(key=lambda x: (-x["gap_ratio"], -x["current_gap"], x["number"]))
+
+            frequent_pairs = [
+                {
+                    "numbers": [int(pair[0]), int(pair[1])],
+                    "count": int(cnt),
+                    "support_pct": round((float(cnt) / float(full_draw_count)) * 100.0, 4),
+                }
+                for pair, cnt in sorted(full_pair_counter.items(), key=lambda x: (-x[1], x[0]))[:20]
+            ]
+            frequent_triplets = [
+                {
+                    "numbers": [int(tri[0]), int(tri[1]), int(tri[2])],
+                    "count": int(cnt),
+                    "support_pct": round((float(cnt) / float(full_draw_count)) * 100.0, 4),
+                }
+                for tri, cnt in sorted(full_triplet_counter.items(), key=lambda x: (-x[1], x[0]))[:20]
+            ]
+
+            top_partners = {}
+            partner_matrix = {n: Counter() for n in range(1, 46)}
+            for (a, b), cnt in full_pair_counter.items():
+                partner_matrix[a][b] += cnt
+                partner_matrix[b][a] += cnt
+
+            for number in range(1, 46):
+                top_partners[number] = [
+                    {"number": int(pn), "count": int(pc)}
+                    for pn, pc in sorted(partner_matrix[number].items(), key=lambda x: (-x[1], x[0]))[:3]
+                ]
+
+            edge_items = sorted(full_pair_counter.items(), key=lambda x: (-x[1], x[0]))[:80]
+            association_edges = [
+                {
+                    "from": int(a),
+                    "to": int(b),
+                    "count": int(cnt),
+                    "support_pct": round((float(cnt) / float(full_draw_count)) * 100.0, 4),
+                }
+                for (a, b), cnt in edge_items
+            ]
+
+            strength_counter = Counter()
+            for (a, b), cnt in full_pair_counter.items():
+                strength_counter[a] += cnt
+                strength_counter[b] += cnt
+            max_strength = max(strength_counter.values()) if strength_counter else 1
+            central_numbers = [
+                {
+                    "number": int(num),
+                    "strength": int(score),
+                    "normalized_strength": round(float(score / max_strength), 4) if max_strength > 0 else 0.0,
+                }
+                for num, score in sorted(strength_counter.items(), key=lambda x: (-x[1], x[0]))[:12]
+            ]
+
+            max_edge_count = (45 * 44) // 2
+            network_density = round(float(len(full_pair_counter)) / float(max_edge_count), 6) if max_edge_count > 0 else 0.0
+
+            trend_window = max(8, min(25, full_draw_count // 3))
+            recent_window = normalized[-trend_window:]
+            prev_window = normalized[-(trend_window * 2):-trend_window]
+            if not prev_window:
+                prev_window = normalized[:trend_window]
+
+            recent_window_counter = Counter(n for _, nums in recent_window for n in nums)
+            prev_window_counter = Counter(n for _, nums in prev_window for n in nums)
+            recent_norm = float(max(1, len(recent_window)))
+            prev_norm = float(max(1, len(prev_window)))
+
+            trend_rows = []
+            for number in range(1, 46):
+                recent_rate = float(recent_window_counter.get(number, 0) / recent_norm)
+                prev_rate = float(prev_window_counter.get(number, 0) / prev_norm)
+                trend_rows.append(
+                    {
+                        "number": int(number),
+                        "recent_rate": round(recent_rate, 4),
+                        "previous_rate": round(prev_rate, 4),
+                        "delta_rate": round(recent_rate - prev_rate, 4),
+                    }
+                )
+            rising_numbers = sorted(trend_rows, key=lambda x: (-x["delta_rate"], -x["recent_rate"], x["number"]))[:10]
+            falling_numbers = sorted(trend_rows, key=lambda x: (x["delta_rate"], x["recent_rate"], x["number"]))[:10]
+
+            stable_cycles = []
+            for number in range(1, 46):
+                intervals = interval_map.get(number, [])
+                if len(intervals) < 3:
+                    continue
+                mean_interval = float(np.mean(intervals))
+                if mean_interval <= 0:
+                    continue
+                std_interval = float(np.std(intervals))
+                cv = float(std_interval / mean_interval) if mean_interval > 0 else 0.0
+                regularity_score = max(0.0, 100.0 * (1.0 - min(1.0, cv)))
+                current_gap = int(latest_draw_no - last_seen[number]) if last_seen[number] is not None else int(latest_draw_no)
+                pressure = max(0.0, (float(current_gap) - mean_interval) / mean_interval) if mean_interval > 0 else 0.0
+                stable_cycles.append(
+                    {
+                        "number": int(number),
+                        "mean_interval": round(mean_interval, 4),
+                        "interval_std": round(std_interval, 4),
+                        "current_gap": int(current_gap),
+                        "regularity_score": round(regularity_score, 4),
+                        "cycle_pressure": round(pressure, 4),
+                    }
+                )
+            stable_cycles.sort(key=lambda x: (-x["regularity_score"], -x["cycle_pressure"], x["number"]))
+
+            repeat_overlaps = []
+            repeat_occurrences = Counter()
+            repeat_hits = Counter()
+            for i in range(1, len(normalized)):
+                prev_numbers = set(normalized[i - 1][1])
+                curr_numbers = set(normalized[i][1])
+                repeat_overlaps.append(len(prev_numbers.intersection(curr_numbers)))
+                for n in prev_numbers:
+                    repeat_occurrences[n] += 1
+                    if n in curr_numbers:
+                        repeat_hits[n] += 1
+
+            expected_repeat_count = float(np.mean(repeat_overlaps)) if repeat_overlaps else 0.0
+            repeat_rate_pct = (expected_repeat_count / 6.0) * 100.0 if expected_repeat_count > 0 else 0.0
+
+            last_draw_numbers = normalized[-1][1]
+            last_draw_repeat_probabilities = []
+            for n in last_draw_numbers:
+                occ = repeat_occurrences.get(n, 0)
+                hit = repeat_hits.get(n, 0)
+                prob = float(hit / occ) if occ > 0 else 0.0
+                last_draw_repeat_probabilities.append(
+                    {
+                        "number": int(n),
+                        "repeat_probability_pct": round(prob * 100.0, 4),
+                        "samples": int(occ),
+                    }
+                )
+            last_draw_repeat_probabilities.sort(key=lambda x: (-x["repeat_probability_pct"], x["number"]))
+
+            due_candidates = []
+            for number in range(1, 46):
+                current_gap = int(latest_draw_no - last_seen[number]) if last_seen[number] is not None else int(latest_draw_no)
+                mean_interval = float(np.mean(interval_map[number])) if interval_map[number] else 0.0
+                if mean_interval > 0:
+                    appearance_prob = 1.0 - math.exp(-(float(current_gap) + 1.0) / mean_interval)
+                    pressure_ratio = float(current_gap / mean_interval)
+                else:
+                    appearance_prob = 0.05
+                    pressure_ratio = 0.0
+                due_score = min(100.0, (appearance_prob * 75.0) + min(25.0, pressure_ratio * 12.5))
+                due_candidates.append(
+                    {
+                        "number": int(number),
+                        "current_gap": int(current_gap),
+                        "mean_interval": round(mean_interval, 4),
+                        "next_draw_probability_pct": round(appearance_prob * 100.0, 4),
+                        "due_score": round(due_score, 4),
+                    }
+                )
+            due_candidates.sort(key=lambda x: (-x["due_score"], -x["next_draw_probability_pct"], x["number"]))
+
+            return {
+                "hot_numbers": hot_numbers,
+                "cold_numbers": cold_numbers,
+                "delayed_numbers": delayed_numbers[:15],
+                "overdue_numbers": overdue_numbers[:15],
+                "frequent_pairs": frequent_pairs,
+                "frequent_triplets": frequent_triplets,
+                "number_associations": {
+                    "edges": association_edges,
+                    "top_partners": top_partners,
+                },
+                "number_network": {
+                    "central_numbers": central_numbers,
+                    "edge_count": int(len(full_pair_counter)),
+                    "density": float(network_density),
+                },
+                "historical_trends": {
+                    "window_size": int(trend_window),
+                    "rising_numbers": rising_numbers,
+                    "falling_numbers": falling_numbers,
+                },
+                "cycle_detection": {
+                    "stable_cycles": stable_cycles[:15],
+                    "avg_interval_map": {int(k): float(v) for k, v in avg_interval_map.items()},
+                },
+                "repeat_prediction": {
+                    "expected_repeat_count": round(expected_repeat_count, 4),
+                    "historical_repeat_rate_pct": round(repeat_rate_pct, 4),
+                    "last_draw_repeat_probabilities": last_draw_repeat_probabilities,
+                },
+                "gap_prediction": {
+                    "next_draw_due_numbers": due_candidates[:15],
+                },
+            }
+        except Exception as e:
+            _log.warning(f"Error in build_phase_c_analytics: {e}", exc_info=True)
+            return empty_payload
+
+    @staticmethod
     def _get_default_fallback_stats() -> Dict[str, Any]:
         """Provides default structural data in case of exceptions or empty database."""
-        return {
+        fallback = {
             "total_draws": 1241,
             "sum_statistics": {"average": 138.5, "min": 50, "max": 250},
             "odd_even_distribution": {"Odd 3 : Even 3": 100},
@@ -316,5 +663,9 @@ class StatisticsEngine:
                 "p_value": 1.0,
                 "is_uniformly_distributed": True,
                 "bias_status": {}
-            }
+            },
         }
+        phase_c_fallback = StatisticsEngine.build_phase_c_analytics([])
+        fallback["phase_c_analytics"] = phase_c_fallback
+        fallback.update(phase_c_fallback)
+        return fallback

@@ -25,6 +25,7 @@ class StatisticsWidgetConnector:
             gaps_data = StatisticsEngine.analyze_periodicity_and_gaps(history_data)
             decade_data = StatisticsEngine.analyze_decade_and_digit_distribution(history_data)
             chi2_data = StatisticsEngine.chi_square_goodness_of_fit(history_data)
+            phase_c_data = StatisticsEngine.build_phase_c_analytics(history_data, lookback_draws=80)
 
             if hasattr(self.main_window, 'decade_dist_widget') and self.main_window.decade_dist_widget:
                 if hasattr(self.main_window.decade_dist_widget, 'update_distribution_data'):
@@ -42,6 +43,16 @@ class StatisticsWidgetConnector:
                 p_val_str = f"{chi2_data.get('p_value', 1.0):.4f}"
                 uniform_status = "Normal (Uniform)" if chi2_data.get('is_uniformly_distributed', True) else "Biased (Skewed)"
                 self.main_window.live_console_widget.log_message(f"Advanced Stats: Chi2 p-value={p_val_str} [{uniform_status}]")
+                hot = phase_c_data.get("hot_numbers", [])[:3]
+                cold = phase_c_data.get("cold_numbers", [])[:3]
+                if hot:
+                    self.main_window.live_console_widget.log_message(
+                        "Hot Numbers: " + ", ".join(str(item.get("number")) for item in hot)
+                    )
+                if cold:
+                    self.main_window.live_console_widget.log_message(
+                        "Cold Numbers: " + ", ".join(str(item.get("number")) for item in cold)
+                    )
 
             _log.info("All analytical statistics successfully pushed to connected UI widgets via StatisticsEngine.")
         except Exception as e:

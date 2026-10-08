@@ -28,6 +28,7 @@ from core.generation_schema import (
     build_generation_metadata,
     build_generation_stats,
     build_top_ranked_combinations,
+    derive_score_weights_from_history,
     resolve_total_algorithms_active,
 )
 from core.quality_gate import calculate_ac_value, passes_quality_gate
@@ -245,6 +246,7 @@ class LottoWorker(QThread):
             )
             raw_history = getattr(getattr(self.engine, "engine", self.engine), "historical_draws", [])
             frequency_map = build_frequency_map_from_history(raw_history, lookback=120)
+            score_weights = derive_score_weights_from_history(raw_history, lookback=120)
             ranked_candidates = []
             for pred in prediction_sets_snapshot:
                 if not isinstance(pred, dict):
@@ -263,6 +265,7 @@ class LottoWorker(QThread):
                 ranked_candidates,
                 limit=50,
                 frequency_map=frequency_map,
+                score_weights=score_weights,
             )
             total_algorithms_active = resolve_total_algorithms_active(self.engine, default=0)
             if total_algorithms_active <= 0:
@@ -283,7 +286,10 @@ class LottoWorker(QThread):
                     "Quality Gate Filtering Engine",
                     "AI Neural Weight Ensembler" if self.ai_weights else "Statistical Matrix Evaluator",
                 ],
-                extras={"top_ranked_combinations": top_ranked_combinations},
+                extras={
+                    "top_ranked_combinations": top_ranked_combinations,
+                    "score_weight_profile": {k: round(float(v), 4) for k, v in score_weights.items()},
+                },
             )
 
             try:

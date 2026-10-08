@@ -2,9 +2,19 @@
 """Shared schema builders for generation stats, ranking, and metadata."""
 from __future__ import annotations
 
+import statistics
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from core.quality_gate import calculate_ac_value
+
+DEFAULT_SCORE_WEIGHTS: Dict[str, float] = {
+    "probability": 0.35,
+    "pattern": 0.20,
+    "ai": 0.25,
+    "genetic": 0.20,
+    "confidence_probability": 0.45,
+    "confidence_ensemble": 0.55,
+}
 
 
 def resolve_total_algorithms_active(engine_like: Any, default: int = 0) -> int:
@@ -107,6 +117,110 @@ def _clamp_score(value: float, lower: float = 0.0, upper: float = 100.0) -> floa
         return lower
 
 
+def _normalize_ratio_weights(values: Dict[str, float], keys: Sequence[str]) -> Dict[str, float]:
+    cleaned = {}
+    for key in keys:
+        try:
+            cleaned[key] = max(0.0001, float(values.get(key, 0.0)))
+        except Exception:
+            cleaned[key] = 0.0001
+
+    total = sum(cleaned.values())
+    if total <= 0:
+        unit = 1.0 / float(max(1, len(keys)))
+        return {key: unit for key in keys}
+    return {key: float(cleaned[key] / total) for key in keys}
+
+
+def _resolve_score_weights(score_weights: Optional[Dict[str, float]] = None) -> Dict[str, float]:
+    merged = dict(DEFAULT_SCORE_WEIGHTS)
+    if isinstance(score_weights, dict):
+        for key in DEFAULT_SCORE_WEIGHTS.keys():
+            if key in score_weights:
+                try:
+                    merged[key] = float(score_weights[key])
+                except Exception:
+                    pass
+
+    ensemble_keys = ("probability", "pattern", "ai", "genetic")
+    confidence_keys = ("confidence_probability", "confidence_ensemble")
+    merged.update(_normalize_ratio_weights(merged, ensemble_keys))
+    merged.update(_normalize_ratio_weights(merged, confidence_keys))
+    return merged
+
+
+def derive_score_weights_from_history(
+    history_draws: Sequence[Sequence[int]],
+    *,
+    lookback: int = 120,
+) -> Dict[str, float]:
+    """
+    Derives score decomposition weights from historical volatility/concentration.
+    This enables adaptive, data-driven calibration for Top-ranked combination scoring.
+    """
+    base = dict(DEFAULT_SCORE_WEIGHTS)
+    if not history_draws:
+        return _resolve_score_weights(base)
+
+    try:
+        recent = list(history_draws)[-max(12, int(lookback)):]
+    except Exception:
+        return _resolve_score_weights(base)
+
+    cleaned_draws: List[List[int]] = []
+    for draw in recent:
+        try:
+            nums = sorted({int(n) for n in draw if 1 <= int(n) <= 45})
+        except Exception:
+            nums = []
+        if len(nums) == 6:
+            cleaned_draws.append(nums)
+
+    if len(cleaned_draws) < 8:
+        return _resolve_score_weights(base)
+
+    number_counts = {n: 0 for n in range(1, 46)}
+    sums: List[int] = []
+    odd_counts: List[int] = []
+    for draw in cleaned_draws:
+        sums.append(int(sum(draw)))
+        odd_counts.append(int(sum(1 for n in draw if n % 2 != 0)))
+        for n in draw:
+            number_counts[n] += 1
+
+    total_hits = float(sum(number_counts.values()))
+    if total_hits <= 0:
+        return _resolve_score_weights(base)
+
+    probabilities = [float(count) / total_hits for count in number_counts.values() if count > 0]
+    concentration = float(sum(p * p for p in probabilities)) if probabilities else (1.0 / 45.0)
+    baseline_concentration = 1.0 / 45.0
+    concentration_ratio = concentration / baseline_concentration if baseline_concentration > 0 else 1.0
+
+    sum_std = float(statistics.pstdev(sums)) if len(sums) > 1 else 0.0
+    odd_std = float(statistics.pstdev(odd_counts)) if len(odd_counts) > 1 else 0.0
+    volatility_index = (sum_std / 26.0) + (odd_std / 2.5)
+
+    concentration_shift = max(-0.08, min(0.08, (concentration_ratio - 1.0) * 0.045))
+    volatility_shift = max(-0.06, min(0.06, (volatility_index - 0.90) * 0.055))
+
+    tuned = dict(base)
+    tuned["ai"] = base["ai"] - concentration_shift
+    tuned["pattern"] = base["pattern"] + (concentration_shift * 0.60)
+    tuned["genetic"] = base["genetic"] + (concentration_shift * 0.40)
+
+    tuned["probability"] = tuned["probability"] - volatility_shift
+    tuned["pattern"] = tuned["pattern"] + (volatility_shift * 0.35)
+    tuned["genetic"] = tuned["genetic"] + (volatility_shift * 0.65)
+
+    confidence_probability = 0.45 - (volatility_shift * 0.80) + (concentration_shift * 0.50)
+    confidence_probability = max(0.30, min(0.70, confidence_probability))
+    tuned["confidence_probability"] = confidence_probability
+    tuned["confidence_ensemble"] = 1.0 - confidence_probability
+
+    return _resolve_score_weights(tuned)
+
+
 def _pattern_score(numbers: Sequence[int]) -> float:
     cleaned = sorted(int(n) for n in numbers)
     if len(cleaned) != 6:
@@ -156,6 +270,7 @@ def build_top_ranked_combinations(
     *,
     limit: int = 50,
     frequency_map: Optional[Dict[int, float]] = None,
+    score_weights: Optional[Dict[str, float]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Builds ranked combination payload with decomposed scores:
@@ -183,6 +298,7 @@ def build_top_ranked_combinations(
     top_items = normalized[: max(1, int(limit))]
     total = len(top_items)
     ranked_payload = []
+    weights = _resolve_score_weights(score_weights)
 
     for rank_idx, (raw_score, numbers) in enumerate(top_items, start=1):
         probability_score = _clamp_score(raw_score)
@@ -190,12 +306,15 @@ def build_top_ranked_combinations(
         ai_score = _ai_score(numbers, frequency_map, probability_score)
         genetic_score = _genetic_score(numbers, rank_idx - 1, total)
         ensemble_score = _clamp_score(
-            (0.35 * probability_score)
-            + (0.20 * pattern_score)
-            + (0.25 * ai_score)
-            + (0.20 * genetic_score)
+            (weights["probability"] * probability_score)
+            + (weights["pattern"] * pattern_score)
+            + (weights["ai"] * ai_score)
+            + (weights["genetic"] * genetic_score)
         )
-        confidence_score = _clamp_score((0.55 * ensemble_score) + (0.45 * probability_score))
+        confidence_score = _clamp_score(
+            (weights["confidence_ensemble"] * ensemble_score)
+            + (weights["confidence_probability"] * probability_score)
+        )
 
         ranked_payload.append(
             {

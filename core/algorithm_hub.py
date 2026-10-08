@@ -13,6 +13,7 @@ from core.generation_schema import (
     build_generation_metadata,
     build_generation_stats,
     build_top_ranked_combinations,
+    derive_score_weights_from_history,
     resolve_total_algorithms_active,
 )
 
@@ -426,10 +427,15 @@ class AlgorithmHub:
                 getattr(self.engine, "historical_draws", []) if self.engine else [],
                 lookback=120,
             )
+            score_weights = derive_score_weights_from_history(
+                getattr(self.engine, "historical_draws", []) if self.engine else [],
+                lookback=120,
+            )
             top_ranked_combinations = build_top_ranked_combinations(
                 scored_pool,
                 limit=50,
                 frequency_map=frequency_map,
+                score_weights=score_weights,
             )
             generated_sets = [item[1] for item in scored_pool[:target_count]]
 
@@ -457,7 +463,10 @@ class AlgorithmHub:
                     "Markov Transition Engine",
                     "Monte Carlo Validator",
                 ],
-                extras={"top_ranked_combinations": top_ranked_combinations},
+                extras={
+                    "top_ranked_combinations": top_ranked_combinations,
+                    "score_weight_profile": {k: round(float(v), 4) for k, v in score_weights.items()},
+                },
             )
 
             return generated_sets, discards, stats, metadata
@@ -468,6 +477,7 @@ class AlgorithmHub:
             fallback_stats = build_generation_stats(fallback_sets[0], 75.0, 12)
             fallback_scored = [(65.0 - idx * 0.5, nums) for idx, nums in enumerate(fallback_sets)]
             fallback_top_ranked = build_top_ranked_combinations(fallback_scored, limit=50)
+            fallback_score_weights = derive_score_weights_from_history([], lookback=120)
             fallback_metadata = build_generation_metadata(
                 algorithm_id="ensemble_auto",
                 algorithm_title="Fallback Engine",
@@ -475,7 +485,10 @@ class AlgorithmHub:
                 confidence_score=75.0,
                 round_info="Fallback",
                 leading_algorithms=["Fallback Random Generator"],
-                extras={"top_ranked_combinations": fallback_top_ranked},
+                extras={
+                    "top_ranked_combinations": fallback_top_ranked,
+                    "score_weight_profile": {k: round(float(v), 4) for k, v in fallback_score_weights.items()},
+                },
             )
             return fallback_sets, [1, 2, 4, 8, 15, 20], fallback_stats, fallback_metadata
 

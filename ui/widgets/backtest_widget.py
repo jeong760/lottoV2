@@ -130,12 +130,18 @@ class BacktestWidget(QWidget):
                 test_window = result.get("test_total_draws", 50)
                 algo = result.get("algorithm", {})
                 rand = result.get("random_baseline", {})
+                metric_definition = result.get("metric_definition", {})
 
                 self.log_box.append(f"\n==================================================")
                 self.log_box.append(f" BACKTEST & ROI PERFORMANCE REPORT (Last {test_window} Draws)")
                 self.log_box.append(f"==================================================")
                 
                 self.log_box.append(f"\n[AI Algorithm Model]")
+                if isinstance(metric_definition, dict) and metric_definition:
+                    self.log_box.append(
+                        " - Metric Scope: "
+                        f"{metric_definition.get('precision_recall_scope', 'ticket-level summary')}"
+                    )
                 self.log_box.append(f" - Total Cost: {algo.get('total_cost', 0):,} KRW")
                 self.log_box.append(f" - Total Prize: {algo.get('total_prize', 0):,} KRW")
                 self.log_box.append(f" - Return on Investment (ROI): {algo.get('roi', 0.0)}%")
@@ -155,7 +161,8 @@ class BacktestWidget(QWidget):
                         f"Precision={algo_metrics.get('precision', 0.0)}% | "
                         f"Recall={algo_metrics.get('recall', 0.0)}% | "
                         f"F1={algo_metrics.get('f1_score', 0.0)}% | "
-                        f"Tickets={algo_metrics.get('ticket_count', 0)}"
+                        f"Tickets={algo_metrics.get('ticket_count', 0)} | "
+                        f"Coverage={algo_metrics.get('avg_unique_predictions_per_draw', 0.0)}"
                     )
 
                 self.log_box.append(f"\n[Random Baseline Comparison]")
@@ -178,7 +185,8 @@ class BacktestWidget(QWidget):
                         f"Precision={rand_metrics.get('precision', 0.0)}% | "
                         f"Recall={rand_metrics.get('recall', 0.0)}% | "
                         f"F1={rand_metrics.get('f1_score', 0.0)}% | "
-                        f"Tickets={rand_metrics.get('ticket_count', 0)}"
+                        f"Tickets={rand_metrics.get('ticket_count', 0)} | "
+                        f"Coverage={rand_metrics.get('avg_unique_predictions_per_draw', 0.0)}"
                     )
                 self.log_box.append(f"\n==================================================")
                 _log.info("Backtest results successfully rendered on UI dashboard.")
