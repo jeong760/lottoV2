@@ -51,13 +51,15 @@ class LottoEngine:
         "ml_002": "sklearn",
         "ml_003": "sklearn",
         "ml_ts_001": "sklearn",
+        "ml_005": "lightgbm",
+        "ml_006": "catboost",
         "dl_001": "sklearn",
     }
 
     STRATEGY_FUNCTION_IDS = {
         "statistics": ["stat_001", "stat_002"],
         "frequency": ["freq_balanced_01"],
-        "ml_ai": ["ml_001", "ml_002", "ml_003", "ml_004", "ml_ts_001"],
+        "ml_ai": ["ml_001", "ml_002", "ml_003", "ml_004", "ml_ts_001", "ml_005", "ml_006"],
         "ai_neural": ["ALG-AI-01", "dl_001", "dl_002", "dl_003"],
         "pattern": ["pattern_real_01"],
         "advanced": ["adv_custom_01"],
@@ -70,6 +72,8 @@ class LottoEngine:
             "ml_003",
             "ml_004",
             "ml_ts_001",
+            "ml_005",
+            "ml_006",
             "ALG-AI-01",
             "dl_001",
             "dl_002",

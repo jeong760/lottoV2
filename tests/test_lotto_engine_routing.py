@@ -116,12 +116,33 @@ def test_dependency_filtering_disables_ml_function_algorithms():
 
     engine._strategy_candidate_cache.clear()
     engine.runtime_dependencies["sklearn"] = False
+    engine.runtime_dependencies["lightgbm"] = False
+    engine.runtime_dependencies["catboost"] = False
     engine.function_algorithm_registry = {
         "ml_001": lambda: [2, 9, 14, 25, 32, 40],
+        "ml_005": lambda: [3, 11, 16, 24, 37, 44],
+        "ml_006": lambda: [4, 10, 17, 21, 35, 43],
     }
-    engine.function_algorithm_titles = {"ml_001": "ML Function"}
+    engine.function_algorithm_titles = {
+        "ml_001": "ML Function",
+        "ml_005": "LightGBM Function",
+        "ml_006": "CatBoost Function",
+    }
     engine.class_algorithm_registry = {}
 
     bank = engine._build_strategy_candidate_bank("ml_ai", target_size=3)
 
     assert all(entry["source"] != "function:ml_001" for entry in bank)
+    assert all(entry["source"] != "function:ml_005" for entry in bank)
+    assert all(entry["source"] != "function:ml_006" for entry in bank)
+
+
+def test_ml_strategy_mapping_contains_new_algorithms():
+    engine = LottoEngine(historical_draws=_mock_history())
+    ml_ids = engine.STRATEGY_FUNCTION_IDS["ml_ai"]
+    hybrid_ids = engine.STRATEGY_FUNCTION_IDS["hybrid"]
+
+    assert "ml_005" in ml_ids
+    assert "ml_006" in ml_ids
+    assert "ml_005" in hybrid_ids
+    assert "ml_006" in hybrid_ids

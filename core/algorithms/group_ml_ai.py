@@ -30,6 +30,20 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     _log.warning("scikit-learn is not available. Algorithms will run in robust statistical fallback mode.")
 
+try:
+    from lightgbm import LGBMClassifier
+    LIGHTGBM_AVAILABLE = True
+except ImportError:
+    LIGHTGBM_AVAILABLE = False
+    _log.warning("LightGBM is not available. LightGBM algorithm will run in fallback mode.")
+
+try:
+    from catboost import CatBoostClassifier
+    CATBOOST_AVAILABLE = True
+except ImportError:
+    CATBOOST_AVAILABLE = False
+    _log.warning("CatBoost is not available. CatBoost algorithm will run in fallback mode.")
+
 
 def _extract_draw_numbers(draw: dict) -> List[int]:
     """Helper utility to extract and validate 6 numbers from a historical draw record safely."""
@@ -44,6 +58,68 @@ def _extract_draw_numbers(draw: dict) -> List[int]:
             except (ValueError, TypeError):
                 pass
     return sorted(list(set(nums)))[:6]
+
+
+def _build_number_supervised_dataset(history_sets: List[List[int]], lookback: int = 15):
+    """Builds per-number supervised training data from historical draw windows."""
+    try:
+        if len(history_sets) <= lookback:
+            return None, None
+
+        X, y = [], []
+        for i in range(lookback, len(history_sets)):
+            window = history_sets[i - lookback:i]
+            target_set = set(history_sets[i])
+            prev_draw = set(history_sets[i - 1]) if i > 0 else set()
+
+            recent_5 = window[-5:] if len(window) >= 5 else window
+            older = window[:-5] if len(window) > 5 else []
+
+            for num in range(1, 46):
+                freq_5 = sum(1 for draw in recent_5 if num in draw)
+                freq_15 = sum(1 for draw in window if num in draw)
+                freq_older = sum(1 for draw in older if num in draw)
+                momentum = float(freq_5 - freq_older)
+
+                gap = 0
+                for draw in reversed(window):
+                    if num in draw:
+                        break
+                    gap += 1
+
+                X.append([float(freq_5), float(freq_15), momentum, float(gap), 1.0 if num in prev_draw else 0.0])
+                y.append(1 if num in target_set else 0)
+
+        if not X:
+            return None, None
+
+        return np.array(X, dtype=np.float64), np.array(y, dtype=np.int64)
+    except Exception:
+        return None, None
+
+
+def _build_latest_number_features(history_sets: List[List[int]], lookback: int = 15) -> np.ndarray:
+    """Builds per-number feature vectors for inference from the latest window."""
+    window = history_sets[-lookback:] if len(history_sets) >= lookback else history_sets
+    recent_5 = window[-5:] if len(window) >= 5 else window
+    older = window[:-5] if len(window) > 5 else []
+    prev_draw = set(history_sets[-1]) if history_sets else set()
+
+    features = []
+    for num in range(1, 46):
+        freq_5 = sum(1 for draw in recent_5 if num in draw)
+        freq_15 = sum(1 for draw in window if num in draw)
+        freq_older = sum(1 for draw in older if num in draw)
+        momentum = float(freq_5 - freq_older)
+
+        gap = 0
+        for draw in reversed(window):
+            if num in draw:
+                break
+            gap += 1
+
+        features.append([float(freq_5), float(freq_15), momentum, float(gap), 1.0 if num in prev_draw else 0.0])
+    return np.array(features, dtype=np.float64)
 
 
 # ==========================================
@@ -346,6 +422,106 @@ def generate_by_timeseries_momentum() -> List[int]:
             return sorted([int(n) for n in selected])
     except Exception as e:
         _log.error(f"Error in generate_by_timeseries_momentum (sklearn GBR): {e}", exc_info=True)
+
+    return sorted(random.sample(range(1, 46), 6))
+
+
+@register_algorithm("ml_005", "[ML] LightGBM Gradient Leaf-Wise Probability Ranking")
+def generate_by_lightgbm_ranker() -> List[int]:
+    """
+    Trains a genuine LightGBM classifier on rolling historical number-level features
+    and ranks the next-draw number probabilities using leaf-wise gradient boosting.
+    """
+    try:
+        all_draws = LottoRepository.get_all_draws()
+        if not LIGHTGBM_AVAILABLE or not all_draws or len(all_draws) < 35:
+            return sorted(random.sample(range(1, 46), 6))
+
+        history_sets = [_extract_draw_numbers(d) for d in all_draws if len(_extract_draw_numbers(d)) == 6]
+        if len(history_sets) < 25:
+            return sorted(random.sample(range(1, 46), 6))
+
+        X_arr, y_arr = _build_number_supervised_dataset(history_sets, lookback=15)
+        if X_arr is None or y_arr is None or len(np.unique(y_arr)) < 2:
+            return sorted(random.sample(range(1, 46), 6))
+
+        lgbm = LGBMClassifier(
+            n_estimators=120,
+            learning_rate=0.05,
+            num_leaves=31,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            random_state=42,
+            verbose=-1
+        )
+        lgbm.fit(X_arr, y_arr)
+
+        latest_features = _build_latest_number_features(history_sets, lookback=15)
+        probas = lgbm.predict_proba(latest_features)
+        if isinstance(probas, np.ndarray) and probas.ndim == 2 and probas.shape[1] > 1:
+            score_arr = probas[:, 1]
+        else:
+            score_arr = np.full(45, 0.5, dtype=np.float64)
+
+        candidate_pool = list(range(1, 46))
+        weight_values = [max(0.01, float(score_arr[idx])) for idx in range(45)]
+        probs = np.array(weight_values, dtype=np.float64)
+        probs /= probs.sum()
+
+        selected = np.random.choice(candidate_pool, size=6, replace=False, p=probs)
+        return sorted([int(n) for n in selected])
+    except Exception as e:
+        _log.error(f"Error in generate_by_lightgbm_ranker: {e}", exc_info=True)
+
+    return sorted(random.sample(range(1, 46), 6))
+
+
+@register_algorithm("ml_006", "[ML] CatBoost Ordered Boosting Classifier")
+def generate_by_catboost_classifier() -> List[int]:
+    """
+    Trains a genuine CatBoost classifier on ordered historical draw features and
+    samples numbers from the resulting probability distribution.
+    """
+    try:
+        all_draws = LottoRepository.get_all_draws()
+        if not CATBOOST_AVAILABLE or not all_draws or len(all_draws) < 35:
+            return sorted(random.sample(range(1, 46), 6))
+
+        history_sets = [_extract_draw_numbers(d) for d in all_draws if len(_extract_draw_numbers(d)) == 6]
+        if len(history_sets) < 25:
+            return sorted(random.sample(range(1, 46), 6))
+
+        X_arr, y_arr = _build_number_supervised_dataset(history_sets, lookback=15)
+        if X_arr is None or y_arr is None or len(np.unique(y_arr)) < 2:
+            return sorted(random.sample(range(1, 46), 6))
+
+        cat_model = CatBoostClassifier(
+            iterations=160,
+            depth=6,
+            learning_rate=0.05,
+            loss_function="Logloss",
+            eval_metric="AUC",
+            random_seed=42,
+            verbose=False
+        )
+        cat_model.fit(X_arr, y_arr, verbose=False)
+
+        latest_features = _build_latest_number_features(history_sets, lookback=15)
+        probas = cat_model.predict_proba(latest_features)
+        if isinstance(probas, np.ndarray) and probas.ndim == 2 and probas.shape[1] > 1:
+            score_arr = probas[:, 1]
+        else:
+            score_arr = np.full(45, 0.5, dtype=np.float64)
+
+        candidate_pool = list(range(1, 46))
+        weight_values = [max(0.01, float(score_arr[idx])) for idx in range(45)]
+        probs = np.array(weight_values, dtype=np.float64)
+        probs /= probs.sum()
+
+        selected = np.random.choice(candidate_pool, size=6, replace=False, p=probs)
+        return sorted([int(n) for n in selected])
+    except Exception as e:
+        _log.error(f"Error in generate_by_catboost_classifier: {e}", exc_info=True)
 
     return sorted(random.sample(range(1, 46), 6))
 
