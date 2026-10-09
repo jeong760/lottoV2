@@ -540,11 +540,11 @@ def generate_by_lightgbm_ranker() -> List[int]:
             if "access violation" in err_msg:
                 LIGHTGBM_RUNTIME_DISABLED = True
                 _log.warning(
-                    "LightGBM native fit crashed with access violation; disabling LightGBM for this session and using sklearn fallback."
+                    "LightGBM native fit crashed with access violation; disabling LightGBM for this session and using time-series fallback."
                 )
             else:
                 _log.warning(
-                    "LightGBM fit failed with native OSError; using sklearn fallback. detail=%s",
+                    "LightGBM fit failed with native OSError; using time-series fallback. detail=%s",
                     fit_error,
                 )
             return generate_by_timeseries_momentum()
