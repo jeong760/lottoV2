@@ -2,11 +2,8 @@
 import sys
 import os
 
-# [Defensive Measure] TensorFlow multi-threading conflict and C-level segmentation fault prevention settings
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
+# [Defensive Measure] Bound OpenMP thread usage to reduce native library contention.
 os.environ["OMP_NUM_THREADS"] = "4"
-os.environ["TF_NUM_INTRAOP_THREADS"] = "2"
-os.environ["TF_NUM_INTEROP_THREADS"] = "2"
 
 import logging
 import importlib
