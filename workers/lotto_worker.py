@@ -35,6 +35,30 @@ from core.quality_gate import calculate_ac_value, passes_quality_gate
 
 _log = logging.getLogger("LottoTurbineWorker")
 
+
+class _RestrictedUnpickler(pickle.Unpickler):
+    _SAFE_BUILTINS = {
+        "dict": dict,
+        "list": list,
+        "tuple": tuple,
+        "set": set,
+        "frozenset": frozenset,
+        "str": str,
+        "int": int,
+        "float": float,
+        "bool": bool,
+        "bytes": bytes,
+    }
+
+    def find_class(self, module, name):
+        if module == "builtins" and name in self._SAFE_BUILTINS:
+            return self._SAFE_BUILTINS[name]
+        raise pickle.UnpicklingError(f"unsafe class requested: {module}.{name}")
+
+
+def _safe_pickle_load(file_obj):
+    return _RestrictedUnpickler(file_obj).load()
+
 class LottoWorker(QThread):
     """
     Background worker thread that pre-calculates requested lotto sets 
@@ -79,7 +103,9 @@ class LottoWorker(QThread):
         if os.path.exists(model_path):
             try:
                 with open(model_path, "rb") as f:
-                    data = pickle.load(f)
+                    data = _safe_pickle_load(f)
+                    if not isinstance(data, dict):
+                        return None
                     _log.info("AI model weights successfully loaded into LottoWorker.")
                     return data
             except Exception as e:
@@ -126,13 +152,12 @@ class LottoWorker(QThread):
             )
         except Exception as e:
             _log.warning(f"Error in _passes_quality_gate: {e}", exc_info=True)
-            return True  # 예외 시 통과시켜 크래시 방지
+            return False
 
     def run(self):
         try:
             _log.info(f"Venus Turbine Worker started generating {self.set_count} sets using [{self.algorithm_title}]...")
             all_generated_sets = []
-            full_sets_for_db = []
             
             # 최신 당첨 번호 캐싱 (성능 최적화)
             latest_draw_nums = self._get_latest_draw_numbers()
@@ -226,7 +251,6 @@ class LottoWorker(QThread):
                 full_draw = raw_set + [bonus_ball]
 
                 all_generated_sets.append(raw_set)
-                full_sets_for_db.append(full_draw)
 
                 self.set_ready_signal.emit(set_idx, full_draw)
                 time.sleep(0.005)
@@ -291,12 +315,6 @@ class LottoWorker(QThread):
                     "score_weight_profile": {k: round(float(v), 4) for k, v in score_weights.items()},
                 },
             )
-
-            try:
-                LottoRepository.save_generation_history(self.set_count, full_sets_for_db, metadata)
-                _log.info("Generation history successfully saved to DB.")
-            except Exception as db_err:
-                _log.error(f"Failed to save generation history in worker: {db_err}", exc_info=True)
 
             self.finished_signal.emit(all_generated_sets, discards, stats, metadata)
             _log.info("Venus Turbine Worker successfully finished generation cycle.")

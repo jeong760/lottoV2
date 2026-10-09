@@ -310,8 +310,8 @@ class AlgorithmHub:
 
             X = np.array(features, dtype=np.float64)
             k = min(int(target_count), len(X))
-            np.random.seed(42)
-            centroids = X[np.random.choice(X.shape[0], k, replace=False)]
+            rng = np.random.default_rng(42)
+            centroids = X[rng.choice(X.shape[0], k, replace=False)]
 
             for _ in range(10):
                 distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=2)

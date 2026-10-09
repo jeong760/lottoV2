@@ -101,4 +101,4 @@ class MonteCarloValidator:
             }
         except Exception as e:
             _log.warning(f"Error in MonteCarloValidator evaluation: {e}", exc_info=True)
-            return {"is_valid": True, "confidence": 85.0, "sum_z_score": 0.0}
+            return {"is_valid": False, "confidence": 0.0, "sum_z_score": 0.0}

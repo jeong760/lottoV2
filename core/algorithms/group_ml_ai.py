@@ -20,6 +20,30 @@ from data.repositories.lotto_repository import LottoRepository
 from data.repositories.ml_model_repository import MLModelRepository
 from core.algorithms.base import BaseAlgorithm, HistoricalContext, _normalize, register_algorithm
 
+
+class _RestrictedUnpickler(pickle.Unpickler):
+    _SAFE_BUILTINS = {
+        "dict": dict,
+        "list": list,
+        "tuple": tuple,
+        "set": set,
+        "frozenset": frozenset,
+        "str": str,
+        "int": int,
+        "float": float,
+        "bool": bool,
+        "bytes": bytes,
+    }
+
+    def find_class(self, module, name):
+        if module == "builtins" and name in self._SAFE_BUILTINS:
+            return self._SAFE_BUILTINS[name]
+        raise pickle.UnpicklingError(f"unsafe class requested: {module}.{name}")
+
+
+def _safe_pickle_load(file_obj):
+    return _RestrictedUnpickler(file_obj).load()
+
 try:
     from sklearn.ensemble import RandomForestClassifier, GradientBoostingRegressor
     from sklearn.cluster import KMeans
@@ -314,7 +338,11 @@ def generate_by_hidden_markov_model() -> List[int]:
         
         if cached_model and cached_model.get("trained_latest_draw") == current_latest_draw:
             try:
-                transition_matrix = {int(k): {int(sub_k): float(sub_v) for sub_k, sub_v in v.items()} for k, v in cached_model["model_data"].items()}
+                model_payload = cached_model.get("model_data", {})
+                transition_matrix = {
+                    int(k): {int(sub_k): float(sub_v) for sub_k, sub_v in v.items()}
+                    for k, v in model_payload.items()
+                }
             except Exception:
                 transition_matrix = None
 
@@ -338,7 +366,14 @@ def generate_by_hidden_markov_model() -> List[int]:
                         transition_matrix[n1][n2] /= row_sum
 
             try:
-                MLModelRepository.save_model_state(model_key, "HiddenMarkovModel", transition_matrix, current_latest_draw)
+                MLModelRepository.save_model_state(
+                    model_key,
+                    "HiddenMarkovModel",
+                    {
+                        "trained_latest_draw": int(current_latest_draw),
+                        "model_data": transition_matrix,
+                    },
+                )
             except Exception:
                 pass
 
@@ -533,11 +568,13 @@ def generate_by_catboost_classifier() -> List[int]:
 @register_algorithm("ALG-AI-01", "Machine Learning Weight-Based Smart Pattern Extraction")
 def ai_smart_algorithm(db_data=None) -> List[int]:
     """Extracts numbers by reflecting knowledge if an AI brain (weight file) exists."""
-    weight_file = "ai/model_weights.pkl"
+    weight_file = os.path.join(project_root, "ai", "model_weights.pkl")
     if os.path.exists(weight_file):
         try:
             with open(weight_file, "rb") as f:
-                weights = pickle.load(f)
+                weights = _safe_pickle_load(f)
+            if not isinstance(weights, dict):
+                return sorted(random.sample(range(1, 46), 6))
             preferred = weights.get("favorite_bias", [1, 2])
             preferred = [int(n) for n in preferred if 1 <= int(n) <= 45]
             remaining = [n for n in range(1, 46) if n not in preferred]

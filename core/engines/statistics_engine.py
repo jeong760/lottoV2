@@ -241,7 +241,7 @@ class StatisticsEngine:
             total_draws = len(history_data)
             for n in range(1, 46):
                 if n in last_seen:
-                    gaps[n] = int(total_draws - last_seen[n])
+                    gaps[n] = int((total_draws - 1) - last_seen[n])
                 else:
                     gaps[n] = int(total_draws)
         except Exception as e:
