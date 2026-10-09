@@ -89,3 +89,128 @@
 2026-10-08 23:46:13 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
 2026-10-08 23:46:14 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
 2026-10-08 23:46:14 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:02 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [INFO] [RepositoriesModule]: [RepositoriesModule] Repositories package initialization completed.
+2026-10-09 07:42:03 [INFO] [DataModule]: [DataModule] Data package initialization completed.
+2026-10-09 07:42:03 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [WARNING] [GroupMLAIAlgorithms]: scikit-learn is not available. Algorithms will run in robust statistical fallback mode.
+2026-10-09 07:42:03 [WARNING] [GroupMLAIAlgorithms]: LightGBM is not available. LightGBM algorithm will run in fallback mode.
+2026-10-09 07:42:03 [WARNING] [GroupMLAIAlgorithms]: CatBoost is not available. CatBoost algorithm will run in fallback mode.
+2026-10-09 07:42:03 [WARNING] [GroupPatternAlgorithms]: scikit-learn GaussianMixture is not available. Pattern algorithms will use statistical fallback modes.
+2026-10-09 07:42:03 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:03 [WARNING] [AIModule]: [AIModule] Could not import 'LottoAILearningModel': No module named 'pandas'
+2026-10-09 07:42:03 [INFO] [AIModule]: [AIModule] AI package initialization completed.
+2026-10-09 07:42:16 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:16 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [INFO] [RepositoriesModule]: [RepositoriesModule] Repositories package initialization completed.
+2026-10-09 07:42:17 [INFO] [DataModule]: [DataModule] Data package initialization completed.
+2026-10-09 07:42:17 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
+2026-10-09 07:42:17 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [WARNING] [GroupMLAIAlgorithms]: scikit-learn is not available. Algorithms will run in robust statistical fallback mode.
+2026-10-09 07:42:17 [WARNING] [GroupMLAIAlgorithms]: LightGBM is not available. LightGBM algorithm will run in fallback mode.
+2026-10-09 07:42:17 [WARNING] [GroupMLAIAlgorithms]: CatBoost is not available. CatBoost algorithm will run in fallback mode.
+2026-10-09 07:42:17 [WARNING] [GroupPatternAlgorithms]: scikit-learn GaussianMixture is not available. Pattern algorithms will use statistical fallback modes.
+2026-10-09 07:42:17 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:17 [WARNING] [AILearningModel]: TensorFlow is not available. Deep learning LSTM/GRU features will run in fallback statistical mode.
+2026-10-09 07:42:17 [WARNING] [AILearningModel]: statsmodels is not available. ARIMA time series analysis will run in fallback statistical mode.
+2026-10-09 07:42:17 [WARNING] [AILearningModel]: xgboost is not available. Tree-based weighting model will run in fallback statistical mode.
+2026-10-09 07:42:17 [INFO] [AIModule]: [AIModule] AI package initialization completed.
+2026-10-09 07:42:25 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [INFO] [RepositoriesModule]: [RepositoriesModule] Repositories package initialization completed.
+2026-10-09 07:42:26 [INFO] [DataModule]: [DataModule] Data package initialization completed.
+2026-10-09 07:42:26 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [WARNING] [GroupMLAIAlgorithms]: scikit-learn is not available. Algorithms will run in robust statistical fallback mode.
+2026-10-09 07:42:26 [WARNING] [GroupMLAIAlgorithms]: LightGBM is not available. LightGBM algorithm will run in fallback mode.
+2026-10-09 07:42:26 [WARNING] [GroupMLAIAlgorithms]: CatBoost is not available. CatBoost algorithm will run in fallback mode.
+2026-10-09 07:42:26 [WARNING] [GroupPatternAlgorithms]: scikit-learn GaussianMixture is not available. Pattern algorithms will use statistical fallback modes.
+2026-10-09 07:42:26 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:26 [WARNING] [AILearningModel]: TensorFlow is not available. Deep learning LSTM/GRU features will run in fallback statistical mode.
+2026-10-09 07:42:26 [WARNING] [AILearningModel]: statsmodels is not available. ARIMA time series analysis will run in fallback statistical mode.
+2026-10-09 07:42:26 [WARNING] [AILearningModel]: xgboost is not available. Tree-based weighting model will run in fallback statistical mode.
+2026-10-09 07:42:26 [INFO] [AIModule]: [AIModule] AI package initialization completed.
+2026-10-09 07:42:26 [WARNING] [GroupMLAIAlgorithms]: LightGBM native fit crashed with access violation; disabling LightGBM for this session and using sklearn fallback.
+2026-10-09 07:42:30 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:30 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [INFO] [RepositoriesModule]: [RepositoriesModule] Repositories package initialization completed.
+2026-10-09 07:42:31 [INFO] [DataModule]: [DataModule] Data package initialization completed.
+2026-10-09 07:42:31 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
+2026-10-09 07:42:31 [INFO] [ConfigModule]: Configuration module loaded successfully with centralized logging setup and absolute paths.
+2026-10-09 07:42:31 [INFO] [LottoEngine]: Initializing Enterprise LottoEngine with Fixed/Excluded Custom Filters & Advanced Sub-engines...
+2026-10-09 07:42:31 [INFO] [MarkovTransitionEngine]: Initializing MarkovTransitionEngine...
+2026-10-09 07:42:31 [INFO] [MarkovTransitionEngine]: Markov transition matrix successfully built and normalized.
+2026-10-09 07:42:31 [INFO] [MonteCarloValidator]: Initializing MonteCarloValidator...
+2026-10-09 07:42:31 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [WARNING] [GroupMLAIAlgorithms]: scikit-learn is not available. Algorithms will run in robust statistical fallback mode.
+2026-10-09 07:42:31 [WARNING] [GroupMLAIAlgorithms]: LightGBM is not available. LightGBM algorithm will run in fallback mode.
+2026-10-09 07:42:31 [WARNING] [GroupMLAIAlgorithms]: CatBoost is not available. CatBoost algorithm will run in fallback mode.
+2026-10-09 07:42:31 [WARNING] [GroupPatternAlgorithms]: scikit-learn GaussianMixture is not available. Pattern algorithms will use statistical fallback modes.
+2026-10-09 07:42:31 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-09 07:42:31 [INFO] [AlgorithmsPackage]: Initializing and registering all algorithm groups...
+2026-10-09 07:42:31 [INFO] [GroupStatisticsAlgorithms]: Registering statistics group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupStatisticsAlgorithms]: Statistics group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [GroupFrequencyAlgorithms]: Registering frequency group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupFrequencyAlgorithms]: Frequency group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [GroupMLAIAlgorithms]: Registering Unified ML & AI group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupMLAIAlgorithms]: Unified ML & AI group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [GroupPatternAlgorithms]: Registering pattern group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupPatternAlgorithms]: Pattern group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [GroupAdvancedAlgorithms]: Registering advanced group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupAdvancedAlgorithms]: Advanced group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [AlgorithmsPackage]: Successfully registered 435 class-based algorithms and 16 function-based algorithms (loaded groups: group_statistics, group_frequency, group_ml_ai, group_pattern, group_advanced).
+2026-10-09 07:42:31 [INFO] [LottoEngine]: Runtime algorithm registry initialized (class=435, function=16).
+2026-10-09 07:42:31 [INFO] [LottoEngine]: Optional dependency status: catboost=off, lightgbm=off, scipy=on, sklearn=off, statsmodels=off, tensorflow=off, xgboost=off
+2026-10-09 07:42:31 [INFO] [MarkovTransitionEngine]: Markov transition matrix successfully built and normalized.
+2026-10-09 07:42:31 [INFO] [LottoEngine]: Self-Correction Feedback Applied. Dominant strategy: [PATTERN] (Weight: 1.06)
+2026-10-09 07:42:31 [INFO] [LottoEngine]: Initializing Enterprise LottoEngine with Fixed/Excluded Custom Filters & Advanced Sub-engines...
+2026-10-09 07:42:31 [INFO] [MarkovTransitionEngine]: Initializing MarkovTransitionEngine...
+2026-10-09 07:42:31 [INFO] [MarkovTransitionEngine]: Markov transition matrix successfully built and normalized.
+2026-10-09 07:42:31 [INFO] [MonteCarloValidator]: Initializing MonteCarloValidator...
+2026-10-09 07:42:31 [INFO] [AlgorithmsPackage]: Initializing and registering all algorithm groups...
+2026-10-09 07:42:31 [INFO] [GroupStatisticsAlgorithms]: Registering statistics group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupStatisticsAlgorithms]: Statistics group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [GroupFrequencyAlgorithms]: Registering frequency group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupFrequencyAlgorithms]: Frequency group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [GroupMLAIAlgorithms]: Registering Unified ML & AI group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupMLAIAlgorithms]: Unified ML & AI group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [GroupPatternAlgorithms]: Registering pattern group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupPatternAlgorithms]: Pattern group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [GroupAdvancedAlgorithms]: Registering advanced group algorithms...
+2026-10-09 07:42:31 [INFO] [GroupAdvancedAlgorithms]: Advanced group algorithms registered successfully.
+2026-10-09 07:42:31 [INFO] [AlgorithmsPackage]: Successfully registered 435 class-based algorithms and 16 function-based algorithms (loaded groups: group_statistics, group_frequency, group_ml_ai, group_pattern, group_advanced).
+2026-10-09 07:42:31 [INFO] [LottoEngine]: Runtime algorithm registry initialized (class=435, function=16).
+2026-10-09 07:42:31 [INFO] [LottoEngine]: Optional dependency status: catboost=off, lightgbm=off, scipy=on, sklearn=off, statsmodels=off, tensorflow=off, xgboost=off
+2026-10-09 07:42:31 [INFO] [MarkovTransitionEngine]: Markov transition matrix successfully built and normalized.
+2026-10-09 07:42:31 [INFO] [LottoEngine]: Self-Correction Feedback Applied. Dominant strategy: [PATTERN] (Weight: 1.06)
+2026-10-09 07:42:31 [INFO] [LottoEngine]: Skipped strategy 'ml_ai' function algorithms due to missing optional dependencies: ml_001, ml_005, ml_006
