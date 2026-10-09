@@ -20,15 +20,7 @@ if project_root not in sys.path:
 
 _log = logging.getLogger("AILearningModel")
 
-try:
-    import tensorflow as tf
-    from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import Input, LSTM, GRU, Dense, Dropout
-    from tensorflow.keras.callbacks import Callback
-    TF_AVAILABLE = True
-except ImportError:
-    TF_AVAILABLE = False
-    _log.warning("TensorFlow is not available. Deep learning LSTM/GRU features will run in fallback statistical mode.")
+TF_AVAILABLE = False
 
 try:
     from statsmodels.tsa.arima.model import ARIMA
@@ -45,7 +37,7 @@ except ImportError:
     _log.warning("xgboost is not available. Tree-based weighting model will run in fallback statistical mode.")
 
 
-class TrainingProgressCallback(Callback if TF_AVAILABLE else object):
+class TrainingProgressCallback(object):
     """Keras Callback to stream real-time epoch, loss, and metrics to external listeners safely."""
     def __init__(self, progress_callback: Callable | None = None, total_epochs: int = 20):
         super().__init__()
@@ -135,42 +127,10 @@ class LottoAILearningModel:
             return None, None
 
     def build_lstm_model(self, input_shape: tuple[int, int]) -> Any | None:
-        if not TF_AVAILABLE:
-            return None
-        try:
-            model = Sequential([
-                Input(shape=input_shape),
-                LSTM(64, return_sequences=True),
-                Dropout(0.2),
-                LSTM(32, return_sequences=False),
-                Dropout(0.2),
-                Dense(16, activation='relu'),
-                Dense(6, activation='linear')
-            ])
-            model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-            return model
-        except Exception as e:
-            _log.error(f"Failed to build LSTM model: {e}", exc_info=True)
-            return None
+        return None
 
     def build_gru_model(self, input_shape: tuple[int, int]) -> Any | None:
-        if not TF_AVAILABLE:
-            return None
-        try:
-            model = Sequential([
-                Input(shape=input_shape),
-                GRU(64, return_sequences=True),
-                Dropout(0.2),
-                GRU(32, return_sequences=False),
-                Dropout(0.2),
-                Dense(16, activation='relu'),
-                Dense(6, activation='linear')
-            ])
-            model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-            return model
-        except Exception as e:
-            _log.error(f"Failed to build GRU model: {e}", exc_info=True)
-            return None
+        return None
 
     def train_xgboost_model(self, history_records: list[Any]) -> dict[int, float]:
         default_weights = {i: 1.0 for i in range(1, 46)}

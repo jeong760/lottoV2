@@ -186,7 +186,6 @@ class LottoEngine:
     def _detect_runtime_dependencies(self) -> dict[str, bool]:
         return {
             "sklearn": importlib.util.find_spec("sklearn") is not None,
-            "tensorflow": importlib.util.find_spec("tensorflow") is not None,
             "statsmodels": importlib.util.find_spec("statsmodels") is not None,
             "xgboost": importlib.util.find_spec("xgboost") is not None,
             "scipy": importlib.util.find_spec("scipy") is not None,
