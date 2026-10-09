@@ -153,3 +153,14 @@ class StatisticalMetricsWidget(QGroupBox):
             self.update_metric(sum_val, ac_val)
         except Exception as e:
             _log.error(f"Failed to update statistical metrics from numbers: {e}")
+
+    def update_chi_square_metrics(self, chi2_data: dict):
+        """Compatibility hook for controller-side chi-square pushes."""
+        try:
+            if not isinstance(chi2_data, dict):
+                return
+            p_val = float(chi2_data.get("p_value", 1.0))
+            status = "Uniform" if bool(chi2_data.get("is_uniformly_distributed", True)) else "Biased"
+            self.setToolTip(f"Chi-square p-value: {p_val:.4f} ({status})")
+        except Exception as e:
+            _log.error(f"Failed to update chi-square tooltip: {e}")

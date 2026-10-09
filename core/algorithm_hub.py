@@ -7,6 +7,15 @@ import random
 import traceback
 from typing import List, Dict, Any, Tuple
 import numpy as np
+from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
+from core.generation_schema import (
+    build_frequency_map_from_history,
+    build_generation_metadata,
+    build_generation_stats,
+    build_top_ranked_combinations,
+    derive_score_weights_from_history,
+    resolve_total_algorithms_active,
+)
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -301,8 +310,8 @@ class AlgorithmHub:
 
             X = np.array(features, dtype=np.float64)
             k = min(int(target_count), len(X))
-            np.random.seed(42)
-            centroids = X[np.random.choice(X.shape[0], k, replace=False)]
+            rng = np.random.default_rng(42)
+            centroids = X[rng.choice(X.shape[0], k, replace=False)]
 
             for _ in range(10):
                 distances = np.linalg.norm(X[:, np.newaxis] - centroids, axis=2)
@@ -329,11 +338,18 @@ class AlgorithmHub:
             _log.warning(f"K-Means diversification fallback triggered: {e}", exc_info=True)
             return candidate_pool[:int(target_count)]
 
-    def generate_prediction_sets(self, set_count: int = 5, fixed_numbers: list = None, excluded_numbers: list = None):
+    def generate_prediction_sets(
+        self,
+        set_count: int = 5,
+        fixed_numbers: list = None,
+        excluded_numbers: list = None,
+        selected_algorithm_id: str = "ensemble_auto",
+    ):
         try:
             if self.engine and hasattr(self.engine, "generate_prediction_sets"):
                 return self.engine.generate_prediction_sets(
                     set_count=int(set_count), 
+                    selected_algorithm_id=selected_algorithm_id,
                     fixed_numbers=fixed_numbers, 
                     excluded_numbers=excluded_numbers
                 )
@@ -341,9 +357,16 @@ class AlgorithmHub:
             _log.warning(f"Error in generate_prediction_sets: {e}", exc_info=True)
         return []
 
-    def generate_premium_numbers(self, set_count: int = 5, fixed_numbers: list = None, excluded_numbers: list = None) -> Tuple[List[List[int]], List[int], Dict[str, Any], Dict[str, Any]]:
+    def generate_premium_numbers(
+        self,
+        set_count: int = 5,
+        fixed_numbers: list = None,
+        excluded_numbers: list = None,
+        selected_algorithm_id: str = "ensemble_auto",
+    ) -> Tuple[List[List[int]], List[int], Dict[str, Any], Dict[str, Any]]:
         try:
             target_count = int(set_count)
+            resolved_algorithm_id = resolve_algorithm_mode_id(selected_algorithm_id)
             fixed_list = [int(n) for n in (fixed_numbers or []) if 1 <= int(n) <= 45]
             excluded_list = [int(n) for n in (excluded_numbers or []) if 1 <= int(n) <= 45]
             excluded_list = [n for n in excluded_list if n not in fixed_list]
@@ -353,13 +376,15 @@ class AlgorithmHub:
             raw_pool_size = max(target_count * 8, 40)
             prediction_sets = self.generate_prediction_sets(
                 set_count=raw_pool_size, 
+                selected_algorithm_id=resolved_algorithm_id,
                 fixed_numbers=fixed_list, 
                 excluded_numbers=excluded_list
             )
             
             extracted_candidates = []
             confidence = round(float(random.uniform(88.0, 97.5)), 2)
-            contributors = random.randint(30, 50)
+            total_algorithms_active = resolve_total_algorithms_active(self.engine, default=0)
+            contributors = max(1, int(total_algorithms_active * 0.25)) if total_algorithms_active > 0 else random.randint(30, 50)
             
             if prediction_sets:
                 for pred in prediction_sets:
@@ -398,6 +423,20 @@ class AlgorithmHub:
                 scored_pool.append((score, s_nums))
 
             scored_pool.sort(key=lambda x: x[0], reverse=True)
+            frequency_map = build_frequency_map_from_history(
+                getattr(self.engine, "historical_draws", []) if self.engine else [],
+                lookback=120,
+            )
+            score_weights = derive_score_weights_from_history(
+                getattr(self.engine, "historical_draws", []) if self.engine else [],
+                lookback=120,
+            )
+            top_ranked_combinations = build_top_ranked_combinations(
+                scored_pool,
+                limit=50,
+                frequency_map=frequency_map,
+                score_weights=score_weights,
+            )
             generated_sets = [item[1] for item in scored_pool[:target_count]]
 
             while len(generated_sets) < target_count:
@@ -410,37 +449,48 @@ class AlgorithmHub:
             selected_set = set(primary_numbers)
             discards = sorted(list(all_nums - selected_set))[:6]
 
-            ac_val = self._calculate_ac_value(primary_numbers)
+            stats = build_generation_stats(primary_numbers, confidence, contributors)
 
-            stats = {
-                "sum": int(sum(primary_numbers)),
-                "odd_count": int(sum(1 for num in primary_numbers if int(num) % 2 != 0)),
-                "even_count": int(sum(1 for num in primary_numbers if int(num) % 2 == 0)),
-                "high_count": int(sum(1 for num in primary_numbers if int(num) >= 23)),
-                "low_count": int(sum(1 for num in primary_numbers if int(num) < 23)),
-                "ac_value": int(ac_val),
-                "confidence": float(confidence),
-                "contributors": int(contributors)
-            }
-
-            metadata = {
-                "algorithm_title": f"GA & K-Means Diversified Ensemble ({target_count:,} sets)",
-                "total_algorithms_active": 500,
-                "confidence_score": float(confidence),
-                "leading_algorithms": ["Genetic Evolution Optimizer", "K-Means Cluster Diversifier"]
-            }
+            metadata = build_generation_metadata(
+                algorithm_id=resolved_algorithm_id,
+                algorithm_title=get_mode_title(resolved_algorithm_id),
+                total_algorithms_active=max(1, total_algorithms_active or int(contributors)),
+                confidence_score=float(confidence),
+                round_info="Live Draw",
+                leading_algorithms=[
+                    "Registry Strategy Router",
+                    "Quality Gate Filtering Engine",
+                    "Markov Transition Engine",
+                    "Monte Carlo Validator",
+                ],
+                extras={
+                    "top_ranked_combinations": top_ranked_combinations,
+                    "score_weight_profile": {k: round(float(v), 4) for k, v in score_weights.items()},
+                },
+            )
 
             return generated_sets, discards, stats, metadata
 
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] AlgorithmHub generate_premium_numbers error: {e}\n{traceback.format_exc()}")
             fallback_sets = [sorted(random.sample(range(1, 46), 6)) for _ in range(int(set_count))]
-            fallback_stats = {
-                "sum": sum(fallback_sets[0]), "odd_count": 3, "even_count": 3, 
-                "high_count": 3, "low_count": 3, "ac_value": 7, 
-                "confidence": 75.0, "contributors": 12
-            }
-            return fallback_sets, [1, 2, 4, 8, 15, 20], fallback_stats, {"algorithm_title": "Fallback Engine", "total_algorithms_active": 500, "confidence_score": 75.0}
+            fallback_stats = build_generation_stats(fallback_sets[0], 75.0, 12)
+            fallback_scored = [(65.0 - idx * 0.5, nums) for idx, nums in enumerate(fallback_sets)]
+            fallback_top_ranked = build_top_ranked_combinations(fallback_scored, limit=50)
+            fallback_score_weights = derive_score_weights_from_history([], lookback=120)
+            fallback_metadata = build_generation_metadata(
+                algorithm_id="ensemble_auto",
+                algorithm_title="Fallback Engine",
+                total_algorithms_active=12,
+                confidence_score=75.0,
+                round_info="Fallback",
+                leading_algorithms=["Fallback Random Generator"],
+                extras={
+                    "top_ranked_combinations": fallback_top_ranked,
+                    "score_weight_profile": {k: round(float(v), 4) for k, v in fallback_score_weights.items()},
+                },
+            )
+            return fallback_sets, [1, 2, 4, 8, 15, 20], fallback_stats, fallback_metadata
 
     def get_audit_report(self) -> Dict[str, Any]:
         if self.engine and hasattr(self.engine, "build_audit_snapshot"):

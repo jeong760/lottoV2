@@ -336,7 +336,7 @@ class LottoRepository:
                 conn = sqlite3.connect(cls._get_db_path(), timeout=30.0)
                 cursor = conn.cursor()
                 now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                session_id = int(datetime.now().timestamp())
+                session_id = int(datetime.now().timestamp() * 1000000)
                 round_info = str(metadata.get("round", "Next") if metadata else "Next")
                 algo_title = str(metadata.get("algorithm_title", metadata.get("algorithm", "AI Hybrid Engine")) if metadata else "AI Hybrid Engine")
 

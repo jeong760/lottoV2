@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 # ui/widgets/backtest_widget.py
 import logging
-import random
 import os
 import sys
 
@@ -15,7 +14,10 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButt
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from data.repositories.lotto_repository import LottoRepository
 from core.lotto_evaluator import LottoEvaluator
+from core.engines.lotto_engine import LottoEngine
+from core.reporting.dashboard_reporting import build_backtest_report_lines, build_backtest_report_text
 from utils.logger import setup_logging
+from PyQt5.QtWidgets import QFileDialog, QMessageBox
 
 setup_logging(project_root)
 _log = logging.getLogger("BacktestWidget")
@@ -37,27 +39,117 @@ class BacktestWorker(QThread):
     def run(self):
         try:
             _log.info("Starting backtest worker thread initialization...")
-            draws = LottoRepository.get_all_draws()
-            if not draws or len(draws) < self.test_rounds + 30:
+            raw_draws = LottoRepository.get_all_draws()
+            normalized_draws = []
+            for draw in raw_draws or []:
+                if not isinstance(draw, dict):
+                    continue
+
+                nums = []
+                for i in range(1, 7):
+                    raw_num = draw.get(f"num{i}")
+                    if raw_num is None:
+                        raw_num = draw.get(f"drwtNo{i}")
+                    try:
+                        iv = int(raw_num)
+                        if 1 <= iv <= 45:
+                            nums.append(iv)
+                    except (TypeError, ValueError):
+                        continue
+
+                if len(nums) != 6:
+                    continue
+
+                normalized = dict(draw)
+                normalized["numbers"] = sorted(nums)
+                draw_no = draw.get("draw_no", draw.get("drwNo", 0))
+                normalized["draw_no"] = draw_no
+                normalized["drwNo"] = draw_no
+                try:
+                    bonus = int(draw.get("bonus", draw.get("bnusNo", 0)) or 0)
+                except (TypeError, ValueError):
+                    bonus = 0
+                normalized["bonus"] = bonus
+                normalized["bnusNo"] = bonus
+                normalized_draws.append(normalized)
+
+            if not normalized_draws or len(normalized_draws) < self.test_rounds + 30:
                 _log.warning("Insufficient history records for rigorous backtesting.")
                 self.finished_signal.emit({"status": "Error", "msg": "Insufficient history for rigorous backtesting."})
                 return
 
+            normalized_draws.sort(key=lambda draw: int(draw["draw_no"]))
+            test_count = min(max(1, int(self.test_rounds)), len(normalized_draws) - 30)
+            start_test_draw = int(normalized_draws[-test_count]["draw_no"])
             self.progress_signal.emit(10, "Initializing Walk-Forward time-series split...")
 
-            def dummy_algorithm_engine(train_pool, set_count):
-                sets = []
-                for _ in range(set_count):
-                    sets.append(sorted(random.sample(range(1, 46), 6)))
-                return sets
+            engine = LottoEngine(historical_draws=[])
+
+            def _to_history_sets(history_pool):
+                converted = []
+                for rec in history_pool or []:
+                    if not isinstance(rec, dict):
+                        continue
+                    nums = rec.get("numbers", [])
+                    if not nums:
+                        nums = [rec.get(f"num{i}") or rec.get(f"drwtNo{i}") for i in range(1, 7)]
+                    parsed = []
+                    for n in nums:
+                        try:
+                            iv = int(n)
+                            if 1 <= iv <= 45:
+                                parsed.append(iv)
+                        except (TypeError, ValueError):
+                            continue
+                    parsed = sorted(parsed[:6])
+                    if len(parsed) == 6:
+                        converted.append(parsed)
+                return converted
+
+            def real_algorithm_engine(train_pool, set_count):
+                generated_sets = []
+                try:
+                    history_sets = _to_history_sets(train_pool)
+                    if history_sets:
+                        engine.historical_draws = history_sets
+                        engine._recalculate_analytics()
+
+                    prediction_sets = engine.generate_prediction_sets(
+                        set_count=max(1, int(set_count)),
+                        selected_algorithm_id="ensemble_auto",
+                    ) or []
+                    for pred in prediction_sets:
+                        nums = pred.get("numbers", []) if isinstance(pred, dict) else pred
+                        if not isinstance(nums, (list, tuple)):
+                            continue
+                        parsed = []
+                        for n in nums[:6]:
+                            try:
+                                iv = int(n)
+                                if 1 <= iv <= 45:
+                                    parsed.append(iv)
+                            except (TypeError, ValueError):
+                                continue
+                        parsed = sorted(parsed)
+                        if len(parsed) == 6 and parsed not in generated_sets:
+                            generated_sets.append(parsed)
+
+                except Exception as exc:
+                    raise RuntimeError(f"Algorithm generation failed: {exc}") from exc
+                if len(generated_sets) < int(set_count):
+                    raise RuntimeError(
+                        f"Algorithm generated {len(generated_sets)} valid sets; expected {int(set_count)}."
+                    )
+                return generated_sets[:int(set_count)]
 
             self.progress_signal.emit(30, f"Evaluating {self.test_rounds} draws with Train/Test separation...")
             _log.info(f"Executing Walk-Forward backtest simulation for {self.test_rounds} test rounds.")
             
             simulation_result = LottoEvaluator.run_backtest_simulation(
-                all_draws=draws,
-                algorithm_engine=dummy_algorithm_engine,
-                test_window_size=self.test_rounds,
+                all_draws=normalized_draws,
+                algorithm_engine=real_algorithm_engine,
+                start_test_draw=start_test_draw,
+                test_window_size=test_count,
                 sets_per_draw=5
             )
 
@@ -80,6 +172,7 @@ class BacktestWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.worker = None
+        self.last_result = None
         self.init_ui()
 
     def init_ui(self):
@@ -105,10 +198,18 @@ class BacktestWidget(QWidget):
         self.run_btn.clicked.connect(self.start_backtest)
         btn_layout.addWidget(self.run_btn)
 
+        self.export_btn = QPushButton("Export Backtest Report")
+        self.export_btn.setStyleSheet("background-color: #16a085; color: white; font-weight: bold; padding: 8px; border-radius: 4px;")
+        self.export_btn.setEnabled(False)
+        self.export_btn.clicked.connect(self.export_backtest_report)
+        btn_layout.addWidget(self.export_btn)
+
         layout.addLayout(btn_layout)
 
     def start_backtest(self):
         self.run_btn.setEnabled(False)
+        self.export_btn.setEnabled(False)
+        self.last_result = None
         self.log_box.clear()
         self.log_box.append("Starting rigorous Walk-Forward backtest simulation across recent 50 draws...")
         _log.info("User triggered Walk-Forward backtest simulation.")
@@ -127,26 +228,10 @@ class BacktestWidget(QWidget):
         self.run_btn.setEnabled(True)
         try:
             if result and result.get("status") == "success":
-                test_window = result.get("test_total_draws", 50)
-                algo = result.get("algorithm", {})
-                rand = result.get("random_baseline", {})
-
-                self.log_box.append(f"\n==================================================")
-                self.log_box.append(f" BACKTEST & ROI PERFORMANCE REPORT (Last {test_window} Draws)")
-                self.log_box.append(f"==================================================")
-                
-                self.log_box.append(f"\n[AI Algorithm Model]")
-                self.log_box.append(f" - Total Cost: {algo.get('total_cost', 0):,} KRW")
-                self.log_box.append(f" - Total Prize: {algo.get('total_prize', 0):,} KRW")
-                self.log_box.append(f" - Return on Investment (ROI): {algo.get('roi', 0.0)}%")
-                self.log_box.append(f" - Ranks Breakdown: {algo.get('ranks', {})}")
-
-                self.log_box.append(f"\n[Random Baseline Comparison]")
-                self.log_box.append(f" - Total Cost: {rand.get('total_cost', 0):,} KRW")
-                self.log_box.append(f" - Total Prize: {rand.get('total_prize', 0):,} KRW")
-                self.log_box.append(f" - Return on Investment (ROI): {rand.get('roi', 0.0)}%")
-                self.log_box.append(f" - Ranks Breakdown: {rand.get('ranks', {})}")
-                self.log_box.append(f"\n==================================================")
+                self.last_result = result
+                self.export_btn.setEnabled(True)
+                for line in build_backtest_report_lines(result):
+                    self.log_box.append(line)
                 _log.info("Backtest results successfully rendered on UI dashboard.")
             else:
                 error_msg = result.get('msg', 'Unknown error') if isinstance(result, dict) else 'Invalid response format'
@@ -155,3 +240,28 @@ class BacktestWidget(QWidget):
         finally:
             if self.worker:
                 self.worker = None
+
+    def export_backtest_report(self):
+        try:
+            if not isinstance(self.last_result, dict) or self.last_result.get("status") != "success":
+                QMessageBox.warning(self, "Export Warning", "No successful backtest result is available to export.")
+                return
+
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Backtest Report",
+                "lotto_backtest_report.txt",
+                "Text Files (*.txt);;All Files (*)",
+            )
+            if not file_path:
+                return
+
+            report_text = build_backtest_report_text(self.last_result)
+            with open(file_path, mode="w", encoding="utf-8") as f:
+                f.write(report_text)
+
+            QMessageBox.information(self, "Success", f"Backtest report exported successfully:\n{file_path}")
+            _log.info("Backtest report exported: %s", file_path)
+        except Exception as e:
+            _log.error(f"Failed to export backtest report: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to export backtest report: {e}")

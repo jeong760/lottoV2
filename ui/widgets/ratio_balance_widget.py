@@ -3,6 +3,7 @@
 import sys
 import os
 import logging
+import re
 
 # Ensure project root is in python path
 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -113,6 +114,54 @@ class RatioBalanceWidget(QGroupBox):
         self.lbl_odd_even.setText("■ Odd / Even Ratio : Waiting...")
         self.lbl_high_low.setText("■ High / Low Ratio : Waiting...")
 
+    @staticmethod
+    def _dominant_label(dist: dict, fallback: str) -> str:
+        if not isinstance(dist, dict) or not dist:
+            return fallback
+        try:
+            key = max(dist.items(), key=lambda item: float(item[1]))[0]
+            return str(key)
+        except Exception:
+            return str(next(iter(dist.keys())))
+
+    @staticmethod
+    def _parse_odd_even_ratio(text: str):
+        if not text:
+            return None, None
+
+        m_named = re.search(r"Odd\s*(\d+)\s*:\s*Even\s*(\d+)", str(text), re.IGNORECASE)
+        if m_named:
+            return int(m_named.group(1)), int(m_named.group(2))
+
+        m_named_rev = re.search(r"Even\s*(\d+)\s*:\s*Odd\s*(\d+)", str(text), re.IGNORECASE)
+        if m_named_rev:
+            return int(m_named_rev.group(2)), int(m_named_rev.group(1))
+
+        m_simple = re.search(r"(\d+)\s*:\s*(\d+)", str(text))
+        if m_simple:
+            return int(m_simple.group(1)), int(m_simple.group(2))
+
+        return None, None
+
+    @staticmethod
+    def _parse_high_low_ratio(text: str):
+        if not text:
+            return None, None
+
+        m_named = re.search(r"High\s*(\d+)\s*:\s*Low\s*(\d+)", str(text), re.IGNORECASE)
+        if m_named:
+            return int(m_named.group(1)), int(m_named.group(2))
+
+        m_named_rev = re.search(r"Low\s*(\d+)\s*:\s*High\s*(\d+)", str(text), re.IGNORECASE)
+        if m_named_rev:
+            return int(m_named_rev.group(2)), int(m_named_rev.group(1))
+
+        m_simple = re.search(r"(\d+)\s*:\s*(\d+)", str(text))
+        if m_simple:
+            return int(m_simple.group(1)), int(m_simple.group(2))
+
+        return None, None
+
     def update_data(self, ratio_stats: dict, total: int = 1):
         """Updates the ratio balance metrics dynamically from generated simulation history."""
         try:
@@ -122,25 +171,24 @@ class RatioBalanceWidget(QGroupBox):
             oe_dist = ratio_stats.get("odd_even_distribution", {})
             hl_dist = ratio_stats.get("high_low_distribution", {})
 
-            oe_text = list(oe_dist.keys())[0] if oe_dist else self.current_oe
-            hl_text = list(hl_dist.keys())[0] if hl_dist else self.current_hl
+            oe_text = self._dominant_label(oe_dist, self.current_oe)
+            hl_text = self._dominant_label(hl_dist, self.current_hl)
 
-            self.current_oe = oe_text
-            self.current_hl = hl_text
+            odds, evens = self._parse_odd_even_ratio(oe_text)
+            if odds is not None and evens is not None:
+                self.current_oe = f"{odds}:{evens}"
+                self.oe_progress.setValue(max(0, min(6, odds)))
+            else:
+                self.current_oe = str(oe_text)
+            self.lbl_odd_even.setText(f"■ Odd / Even Ratio : {self.current_oe}")
 
-            if ":" in oe_text:
-                parts = oe_text.split(":")
-                odds = int(parts[0])
-                self.oe_progress.setValue(odds)
-
-            self.lbl_odd_even.setText(f"■ Odd / Even Ratio : {oe_text}")
-
-            if ":" in hl_text:
-                parts = hl_text.split(":")
-                highs = int(parts[0])
-                self.hl_progress.setValue(highs)
-
-            self.lbl_high_low.setText(f"■ High / Low Ratio : {hl_text}")
+            highs, lows = self._parse_high_low_ratio(hl_text)
+            if highs is not None and lows is not None:
+                self.current_hl = f"{highs}:{lows}"
+                self.hl_progress.setValue(max(0, min(6, highs)))
+            else:
+                self.current_hl = str(hl_text)
+            self.lbl_high_low.setText(f"■ High / Low Ratio : {self.current_hl}")
         except Exception as e:
             _log.error(f"Failed to update ratio balance data: {e}")
 
@@ -163,7 +211,7 @@ class RatioBalanceWidget(QGroupBox):
 
             lows = sum(1 for n in base_nums if 1 <= n <= 22)
             highs = 6 - lows
-            hl_str = f"{lows}:{highs}"
+            hl_str = f"{highs}:{lows}"
 
             self.current_oe = oe_str
             self.current_hl = hl_str

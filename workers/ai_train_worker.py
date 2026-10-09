@@ -262,7 +262,7 @@ class AITrainWorker(QThread):
                 except Exception:
                     pass
 
-            # --- ¾ÈÀüÇÑ ·¹Æ÷ÁöÅä¸® ¹× DB ÀúÀå (ºí·Ï ºĞ¸® ¹× ¿¹¿Ü °İ¸®) ---
+            # --- ì•ˆì „í•œ ë ˆí¬ì§€í† ë¦¬ ë° DB ì €ì¥ (ë¸”ë¡ ë¶„ë¦¬ ë° ì˜ˆì™¸ ê²©ë¦¬) ---
             try:
                 MLModelRepository.save_model_state(
                     key="latest_weights_1_500",

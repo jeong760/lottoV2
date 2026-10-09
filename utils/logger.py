@@ -6,17 +6,29 @@ import logging
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 
-def setup_logging(project_root_path=None):
+def _resolve_project_root(project_root_path=None):
+    marker_files = ("pyproject.toml", "requirements.txt", "launcher.py")
+
     if project_root_path is None:
-        current_file = Path(__file__).resolve()
-        project_root = current_file.parent.parent
+        start_path = Path(__file__).resolve().parent
     else:
-        project_root = Path(project_root_path).resolve()
+        start_path = Path(project_root_path).resolve()
+
+    candidate = start_path if start_path.is_dir() else start_path.parent
+    for check_dir in [candidate, *candidate.parents]:
+        if any((check_dir / marker).exists() for marker in marker_files):
+            return check_dir
+
+    return Path(__file__).resolve().parent.parent
+
+def setup_logging(project_root_path=None):
+    project_root = _resolve_project_root(project_root_path)
 
     log_dir = project_root / "logs"
     log_dir.mkdir(parents=True, exist_ok=True)
 
     log_file = log_dir / "lotto_dashboard.log"
+    log_file.touch(exist_ok=True)
 
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)

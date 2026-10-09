@@ -15,6 +15,7 @@ _log = logging.getLogger("RealTimeAnalyticsWidget")
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QProgressBar, QSizePolicy
 from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import QPainter, QPen, QColor, QLinearGradient, QBrush
+from core.reporting.dashboard_reporting import build_realtime_dashboard_payload
 
 
 class LottoBallMiniLabel(QLabel):
@@ -55,7 +56,19 @@ class TrendLineChartWidget(QWidget):
         super().__init__(parent)
         self.setFixedHeight(75)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.series_points = [50.0, 45.0, 55.0, 35.0, 40.0, 25.0, 45.0, 50.0, 30.0, 20.0, 40.0, 55.0]
         self.setStyleSheet("background-color: #f8f9fa; border: 1px solid #dcdde1; border-radius: 6px;")
+
+    def set_series_points(self, values):
+        try:
+            parsed = []
+            for item in values or []:
+                parsed.append(max(0.0, min(100.0, float(item))))
+            if parsed:
+                self.series_points = parsed
+            self.update()
+        except Exception:
+            pass
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -69,19 +82,16 @@ class TrendLineChartWidget(QWidget):
         painter.drawLine(0, height // 3, width, height // 3)
         painter.drawLine(0, (height // 3) * 2, width, (height // 3) * 2)
 
-        # Draw smooth trend line
-        points = [
-            (0, 50), (40, 45), (80, 55), (120, 35), (160, 40),
-            (200, 25), (240, 45), (280, 50), (320, 30), (360, 20),
-            (400, 40), (440, 55), (480, 45), (520, 30), (560, 25)
-        ]
-        
+        values = self.series_points if self.series_points else [50.0, 45.0, 55.0, 35.0, 40.0]
+        values = values[:max(2, len(values))]
+
         # Scale points to widget width
         scaled_points = []
-        if width > 0:
-            step = width / 14.0
-            for i, (px, py) in enumerate(points):
-                scaled_points.append((i * step, (py / 70.0) * (height - 15) + 10))
+        if width > 0 and len(values) > 1:
+            step = width / float(max(1, len(values) - 1))
+            for i, val in enumerate(values):
+                y = height - 10 - ((float(val) / 100.0) * (height - 20))
+                scaled_points.append((i * step, y))
 
         if len(scaled_points) > 1:
             path_pen = QPen(QColor("#2980b9"), 2.5, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
@@ -105,6 +115,8 @@ class RealTimeAnalyticsWidget(QFrame):
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(14, 14, 14, 14)
         main_layout.setSpacing(10)
+        self.hot_rows = []
+        self.metric_labels = {}
 
         # Clean Light Theme Styling
         self.setStyleSheet("""
@@ -135,31 +147,10 @@ class RealTimeAnalyticsWidget(QFrame):
         hot_title.setStyleSheet("font-size: 11px; font-weight: bold; color: #2c3e50; border: none; background: transparent;")
         left_layout.addWidget(hot_title)
 
-        hot_data = [(3, "18.6%", "#f1c40f"), (11, "16.4%", "#2980b9"), (17, "14.8%", "#2980b9"), (28, "13.1%", "#e74c3c"), (35, "11.7%", "#7f8c8d")]
-        for num, pct_str, color in hot_data:
-            row_layout = QHBoxLayout()
-            row_layout.setSpacing(8)
-            
-            ball = LottoBallMiniLabel(num)
-            
-            bar = QProgressBar()
-            bar.setFixedHeight(8)
-            bar.setTextVisible(False)
-            bar.setRange(0, 100)
-            bar.setValue(int(float(pct_str.replace("%", ""))))
-            bar.setStyleSheet(f"""
-                QProgressBar {{ background-color: #ecf0f1; border: none; border-radius: 4px; }}
-                QProgressBar::chunk {{ background-color: {color}; border-radius: 4px; }}
-            """)
-            
-            lbl_pct = QLabel(pct_str)
-            lbl_pct.setStyleSheet("font-size: 10px; font-weight: bold; color: #2c3e50; border: none; background: transparent;")
-            lbl_pct.setFixedWidth(36)
-
-            row_layout.addWidget(ball)
-            row_layout.addWidget(bar, stretch=1)
-            row_layout.addWidget(lbl_pct)
+        for _ in range(5):
+            row_layout, ball, bar, lbl_pct = self._create_hot_number_row()
             left_layout.addLayout(row_layout)
+            self.hot_rows.append({"ball": ball, "bar": bar, "label": lbl_pct})
 
         middle_layout.addWidget(left_container, stretch=5)
 
@@ -169,18 +160,18 @@ class RealTimeAnalyticsWidget(QFrame):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(8)
 
-        # Top row cards (Odd/Even, Low/High)
+        # Top row cards (Odd/Even, High/Low)
         top_metrics_layout = QHBoxLayout()
         top_metrics_layout.setSpacing(8)
-        top_metrics_layout.addWidget(self._create_sub_card("Odd / Even", "3 : 3", "Balanced Ratio"))
-        top_metrics_layout.addWidget(self._create_sub_card("Low / High", "3 : 3", "Balanced Ratio"))
+        top_metrics_layout.addWidget(self._create_sub_card("odd_even", "Odd / Even", "3 : 3", "Balanced Ratio"))
+        top_metrics_layout.addWidget(self._create_sub_card("high_low", "High / Low", "3 : 3", "Balanced Ratio"))
         right_layout.addLayout(top_metrics_layout)
 
         # Bottom row cards (Sum Distribution, AC Value)
         bottom_metrics_layout = QHBoxLayout()
         bottom_metrics_layout.setSpacing(8)
-        bottom_metrics_layout.addWidget(self._create_sub_card("Sum Distribution", "188", "(Average : 182.7)"))
-        bottom_metrics_layout.addWidget(self._create_sub_card("AC Value", "7.4", "(Average : 7.1)"))
+        bottom_metrics_layout.addWidget(self._create_sub_card("sum_distribution", "Sum Distribution", "188", "(Average : 182.7)"))
+        bottom_metrics_layout.addWidget(self._create_sub_card("ac_value", "AC Value", "7.4", "(Average : 7.1)"))
         right_layout.addLayout(bottom_metrics_layout)
 
         middle_layout.addWidget(right_container, stretch=6)
@@ -210,9 +201,34 @@ class RealTimeAnalyticsWidget(QFrame):
 
         main_layout.addWidget(bottom_container)
         self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.update_from_statistics({})
         _log.info("RealTimeAnalyticsWidget initialized successfully.")
 
-    def _create_sub_card(self, title: str, main_val: str, sub_val: str):
+    def _create_hot_number_row(self):
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(8)
+
+        ball = LottoBallMiniLabel(1)
+        bar = QProgressBar()
+        bar.setFixedHeight(8)
+        bar.setTextVisible(False)
+        bar.setRange(0, 100)
+        bar.setValue(0)
+        bar.setStyleSheet("""
+            QProgressBar { background-color: #ecf0f1; border: none; border-radius: 4px; }
+            QProgressBar::chunk { background-color: #16a085; border-radius: 4px; }
+        """)
+
+        lbl_pct = QLabel("0.0%")
+        lbl_pct.setStyleSheet("font-size: 10px; font-weight: bold; color: #2c3e50; border: none; background: transparent;")
+        lbl_pct.setFixedWidth(40)
+
+        row_layout.addWidget(ball)
+        row_layout.addWidget(bar, stretch=1)
+        row_layout.addWidget(lbl_pct)
+        return row_layout, ball, bar, lbl_pct
+
+    def _create_sub_card(self, metric_key: str, title: str, main_val: str, sub_val: str):
         """Helper to create small 2x2 analytical cards."""
         card = QFrame()
         card.setStyleSheet("background-color: #f8f9fa; border: 1px solid #dcdde1; border-radius: 6px;")
@@ -235,4 +251,57 @@ class RealTimeAnalyticsWidget(QFrame):
         layout.addWidget(lbl_title)
         layout.addWidget(lbl_main)
         layout.addWidget(lbl_sub)
+        self.metric_labels[metric_key] = (lbl_main, lbl_sub)
         return card
+
+    def _get_heat_color(self, number: int) -> str:
+        if 1 <= number <= 10:
+            return "#f1c40f"
+        if 11 <= number <= 20:
+            return "#2980b9"
+        if 21 <= number <= 30:
+            return "#e74c3c"
+        if 31 <= number <= 40:
+            return "#7f8c8d"
+        return "#27ae60"
+
+    def update_from_statistics(self, stats_payload):
+        try:
+            payload = build_realtime_dashboard_payload(stats_payload, hot_limit=5)
+
+            hot_numbers = payload.get("hot_numbers", [])
+            for idx, row_ref in enumerate(self.hot_rows):
+                if idx < len(hot_numbers):
+                    row = hot_numbers[idx]
+                    number = int(row.get("number", 1))
+                    rate_pct = float(row.get("rate_pct", 0.0))
+                    row_ref["ball"].setText(str(number).zfill(2))
+                    row_ref["ball"].setStyleSheet(row_ref["ball"]._get_ball_stylesheet(number))
+                    row_ref["bar"].setValue(int(max(0.0, min(100.0, rate_pct))))
+                    chunk_color = self._get_heat_color(number)
+                    row_ref["bar"].setStyleSheet(
+                        f"""
+                        QProgressBar {{ background-color: #ecf0f1; border: none; border-radius: 4px; }}
+                        QProgressBar::chunk {{ background-color: {chunk_color}; border-radius: 4px; }}
+                        """
+                    )
+                    row_ref["label"].setText(f"{rate_pct:.1f}%")
+                else:
+                    row_ref["ball"].setText("--")
+                    row_ref["bar"].setValue(0)
+                    row_ref["label"].setText("0.0%")
+
+            for key in ("odd_even", "high_low", "sum_distribution", "ac_value"):
+                labels = self.metric_labels.get(key)
+                if not labels:
+                    continue
+                value_label, sub_label = labels
+                metric_block = payload.get(key, {})
+                if isinstance(metric_block, dict):
+                    value_label.setText(str(metric_block.get("value", "-")))
+                    sub_label.setText(str(metric_block.get("sub", "-")))
+
+            trend_series = payload.get("trend_series", [])
+            self.trend_chart.set_series_points(trend_series)
+        except Exception as e:
+            _log.warning(f"Failed to update RealTimeAnalyticsWidget payload: {e}", exc_info=True)

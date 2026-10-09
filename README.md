@@ -37,6 +37,16 @@ continuous background AI training telemetry, and comprehensive statistical track
 * **Official Draw History Viewer**: Complete database tracker of official historical draws with full 1st~5th prize details, total sales, and individual winner payouts.
 * **Generated Sets Management**: View, batch-select, and export generated number sets to Excel (`.xlsx`) securely without table cell modification risks.
 
+## ✅ Release Readiness Update (Phase C → K)
+
+Recent phases focused on analytics expansion, explainability, and reliability hardening:
+
+* **Expanded analytics surface**: Comprehensive Phase C statistical outputs, plus dedicated **Real-Time Analytics** and **Algorithm Backtesting** tabs.
+* **Batch-aware history continuity**: `generation_batch_id` propagation/persistence with same-batch filtering and session drill-down in **Generated Sets**.
+* **Explainability exports**: Session **Top-50** export and **Batch Report** export using shared reporting helpers.
+* **Backtesting clarity**: Metrics now include hit/match rates and precision/recall/F1 definitions with average prediction coverage.
+* **Legacy compatibility & resilience**: History loading now backfills legacy batch IDs and recovers from malformed numeric history rows.
+
 ---
 
 ## ✨ Bonus Swap Optimizer
@@ -225,7 +235,7 @@ When `launcher.py` invokes `MainWindow`, the graphical interface is structured h
   │
   └── [Central Widget] (Main Vertical Layout)
         │
-        └── [QTabWidget] (4 Core Functional Tabs)
+        └── [QTabWidget] (8 Core Functional Tabs)
               │
               ├── Tab 1: [Live Venus Turbine Generator] (Main Drawing Dashboard)
               │     ├── [HeaderWidget] (Top title and system header)
@@ -243,8 +253,12 @@ When `launcher.py` invokes `MainWindow`, the graphical interface is structured h
               │                 └── [LiveConsoleWidget] (Real-time console telemetry & status panel)
               │
               ├── Tab 2: [Generated Sets] (Generated number sets management widget)
-              ├── Tab 3: [Machine Learning Performance] (Machine learning training status & performance widget)
-              └── Tab 4: [Official Draw History (#1~Latest)] (Historical official winning rounds viewer widget)
+              ├── Tab 3: [Real-Time Analytics] (Live statistical and trend dashboard)
+              ├── Tab 4: [Algorithm Backtesting] (Comparative algorithm vs random baseline evaluation)
+              ├── Tab 5: [Machine Learning Performance] (Machine learning training status & performance widget)
+              ├── Tab 6: [Official Draw History (#1~Latest)] (Historical official winning rounds viewer widget)
+              ├── Tab 7: [Database Management] (DB maintenance and operational utilities)
+              └── Tab 8: [System Parameters] (Runtime system and engine parameter controls)
 
 ```
 
@@ -282,6 +296,8 @@ During startup, the application outputs a sequential log timeline reflecting suc
 | **VenusDrumWidget** | `ui/widgets/venus_drum_widget.py` | Simulates official Venus lottery drum physics and RPM telemetry. |
 | **LiveConsoleWidget** | `ui/widgets/live_console_widget.py` | Displays real-time quality gate status, resource monitoring, estimated time, and incremental filtered/discarded combination counts. |
 | **GeneratedSetsWidget** | `ui/widgets/generated_sets_widget.py` | Manages generated sets history, rank comparison, secure Excel (`.xlsx`) exports, and **Bonus Swap Optimizer**. |
+| **RealTimeAnalyticsWidget** | `ui/widgets/real_time_analytics_widget.py` | Displays live analytics snapshots (hot/cold, overdue, trend, and pattern summaries). |
+| **BacktestWidget** | `ui/widgets/backtest_widget.py` | Runs algorithm backtests and exports standardized report output. |
 | **LottoHeatmapWidget** | `ui/widgets/heatmap_widget.py` | Visualizes frequency heatmaps across all 45 numbers with custom color gradients. |
 
 ---
@@ -289,12 +305,11 @@ During startup, the application outputs a sequential log timeline reflecting suc
 ## 🛠️ Project Directory Structure
 
 ```text
-lotto_project/
+lottoV2/
 │
 ├── core/
 │   ├── __init__.py                # Core package initialization with lazy loading
 │   ├── algorithm_hub.py           # Central hub managing algorithm ensemble & scoring
-│   ├── lotto_db_helper.py         # SQLite database helper for generation history & optimization (optimize_bonus_swap)
 │   └── engines/
 │       ├── __init__.py            # Engine package with lazy export mechanism
 │       ├── lotto_engine.py        # Core computational prediction engine
@@ -302,6 +317,7 @@ lotto_project/
 │       └── ml_engine_runner.py    # ML runner pipeline
 │
 ├── data/
+│   ├── lotto_db_helper.py         # SQLite database helper for generation history and batch/session metadata continuity
 │   ├── updater.py                 # Automated updater fetching official draw records
 │   └── repositories/
 │       └── lotto_repository.py    # Data repository handling official draw queries
@@ -313,6 +329,9 @@ lotto_project/
 │       ├── ml_status_widget.py
 │       ├── official_draw_history_widget.py
 │       ├── generated_sets_widget.py   # Includes BonusSwapDialog & optimization triggers
+│       ├── real_time_analytics_widget.py
+│       ├── backtest_widget.py
+│       ├── db_management_widget.py
 │       ├── heatmap_widget.py
 │       ├── venus_drum_widget.py
 │       ├── drawing_startstop_widget.py

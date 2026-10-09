@@ -4,6 +4,7 @@ import sys
 import os
 import logging
 import csv
+import json
 
 # Ensure project root is in python path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +23,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QFont, QBrush
 from data.lotto_db_helper import LottoDBHelper
 from core.lotto_evaluator import LottoEvaluator
+from core.reporting import build_generation_batch_report_text
 
 try:
     import pandas as pd
@@ -103,6 +105,90 @@ class BonusSwapDialog(QDialog):
         layout.addWidget(close_btn, alignment=Qt.AlignRight)
 
 
+class SessionDetailsDialog(QDialog):
+    """Dialog displaying persisted metadata details for a selected generation session."""
+    def __init__(self, session_payload: dict, parent=None):
+        super().__init__(parent)
+        self.session_payload = session_payload if isinstance(session_payload, dict) else {}
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle("Generation Session Details")
+        self.resize(680, 520)
+        self.setStyleSheet("background-color: #f8f9fa;")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(10)
+
+        title_lbl = QLabel("[Session Drill-Down: Metadata & Explainability]")
+        title_lbl.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        title_lbl.setStyleSheet("color: #2c3e50;")
+        layout.addWidget(title_lbl)
+
+        metadata = self.session_payload.get("metadata", {})
+        if not isinstance(metadata, dict):
+            metadata = {}
+
+        session_id = self.session_payload.get("id", "-")
+        timestamp = self.session_payload.get("timestamp", "-")
+        algo_title = self.session_payload.get("algorithm_title", metadata.get("algorithm_title", "-"))
+        batch_id = self.session_payload.get("generation_batch_id", metadata.get("generation_batch_id", "")) or "-"
+        sets_detail = self.session_payload.get("sets_detail", [])
+        set_count = len(sets_detail) if isinstance(sets_detail, list) else 0
+
+        leading_algos = metadata.get("leading_algorithms", [])
+        leading_text = ", ".join(str(v) for v in leading_algos) if isinstance(leading_algos, list) and leading_algos else "-"
+        top_ranked = metadata.get("top_ranked_combinations", [])
+        top_ranked_count = len(top_ranked) if isinstance(top_ranked, list) else 0
+        score_profile = metadata.get("score_weight_profile", {})
+
+        top_preview = {}
+        if isinstance(top_ranked, list) and top_ranked and isinstance(top_ranked[0], dict):
+            top_preview = top_ranked[0]
+
+        html = f"""
+        <b>Session ID:</b> {session_id}<br>
+        <b>Timestamp:</b> {timestamp}<br>
+        <b>Algorithm:</b> {algo_title}<br>
+        <b>Generation Batch:</b> {batch_id}<br>
+        <b>Stored Sets:</b> {set_count}<br>
+        <b>Confidence Score:</b> {metadata.get('confidence_score', '-')}<br>
+        <b>Total Algorithms Active:</b> {metadata.get('total_algorithms_active', '-')}<br>
+        <b>Leading Algorithms:</b> {leading_text}<br>
+        <b>Top-Ranked Entries:</b> {top_ranked_count}<br><br>
+        <b>Top Ranked Preview (Rank #1 if available)</b><br>
+        <pre>{json.dumps(top_preview, ensure_ascii=False, indent=2)}</pre>
+        <b>Score Weight Profile</b><br>
+        <pre>{json.dumps(score_profile if isinstance(score_profile, dict) else {}, ensure_ascii=False, indent=2)}</pre>
+        """
+
+        browser = QTextBrowser()
+        browser.setStyleSheet("""
+            QTextBrowser {
+                background-color: #ffffff;
+                border: 1px solid #dcdde1;
+                border-radius: 6px;
+                padding: 8px;
+                font-family: 'Consolas', monospace;
+                font-size: 11px;
+            }
+        """)
+        browser.setHtml(html)
+        layout.addWidget(browser)
+
+        close_btn = QPushButton("Close")
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2980b9; color: white; font-weight: bold;
+                padding: 8px 16px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #3498db; }
+        """)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn, alignment=Qt.AlignRight)
+
+
 class GeneratedSetsWidget(QWidget):
     """
     Widget to display and track a history of lotto number sets.
@@ -110,6 +196,8 @@ class GeneratedSetsWidget(QWidget):
     dynamic color-coded matches/probabilities with Gold for 1st place, Excel export options,
     and Bonus Swap Optimizer integration.
     """
+    DEFAULT_UI_HISTORY_SESSION_LIMIT = 1200
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.init_ui()
@@ -182,12 +270,67 @@ class GeneratedSetsWidget(QWidget):
         """)
         export_selected_btn.clicked.connect(lambda: self.export_to_excel(selected_only=True))
 
+        export_ranked_btn = QPushButton("Export Session Top-50")
+        export_ranked_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #34495e; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #3d566e; }
+        """)
+        export_ranked_btn.clicked.connect(self.export_top_ranked_session)
+
+        details_btn = QPushButton("Session Details")
+        details_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #1abc9c; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #16a085; }
+        """)
+        details_btn.clicked.connect(self.show_session_details)
+
+        filter_batch_btn = QPushButton("Filter Same Batch")
+        filter_batch_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #5d6d7e; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #6c7a89; }
+        """)
+        filter_batch_btn.clicked.connect(self.filter_rows_by_selected_batch)
+
+        clear_filter_btn = QPushButton("Clear Batch Filter")
+        clear_filter_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #7f8c8d; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #95a5a6; }
+        """)
+        clear_filter_btn.clicked.connect(self.clear_batch_filter)
+
+        export_batch_report_btn = QPushButton("Export Batch Report")
+        export_batch_report_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2c3e50; color: white; font-weight: bold;
+                padding: 6px 14px; border-radius: 4px;
+            }
+            QPushButton:hover { background-color: #34495e; }
+        """)
+        export_batch_report_btn.clicked.connect(self.export_batch_report)
+
         top_layout.addWidget(refresh_btn)
         top_layout.addWidget(select_all_btn)
         top_layout.addWidget(deselect_all_btn)
         top_layout.addWidget(optimize_btn)
         top_layout.addWidget(export_all_btn)
         top_layout.addWidget(export_selected_btn)
+        top_layout.addWidget(export_ranked_btn)
+        top_layout.addWidget(details_btn)
+        top_layout.addWidget(filter_batch_btn)
+        top_layout.addWidget(clear_filter_btn)
+        top_layout.addWidget(export_batch_report_btn)
         top_layout.addStretch()
         layout.addLayout(top_layout)
 
@@ -195,7 +338,7 @@ class GeneratedSetsWidget(QWidget):
         headers = [
             "Select", "ID", "Date", "Round", "Algorithm", 
             "N1", "N2", "N3", "N4", "N5", "N6", "Bonus", 
-            "Rounds", "Matches", "Rank", "Probability"
+            "Rounds", "Matches", "Rank", "Probability", "Batch"
         ]
         self.table.setColumnCount(len(headers))
         self.table.setHorizontalHeaderLabels(headers)
@@ -257,7 +400,11 @@ class GeneratedSetsWidget(QWidget):
             self.table.setSortingEnabled(False)
             self.table.setRowCount(0)
 
-            history_records = LottoDBHelper.get_generation_history() if hasattr(LottoDBHelper, 'get_generation_history') else []
+            history_records = (
+                LottoDBHelper.get_generation_history(max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT)
+                if hasattr(LottoDBHelper, 'get_generation_history')
+                else []
+            )
             if not history_records:
                 _log.warning("No generated number sets found in local database.")
                 self.table.setSortingEnabled(True)
@@ -269,13 +416,25 @@ class GeneratedSetsWidget(QWidget):
                 rec_date = record.get("created_at", record.get("date", record.get("timestamp", "-")))
                 rec_round = self._get_alpha_label(row)
                 rec_title = record.get("algorithm_title", record.get("title", record.get("algorithm", "AI Ensemble")))
+                session_meta = record.get("session_metadata", {}) if isinstance(record.get("session_metadata"), dict) else {}
+                batch_id = str(session_meta.get("generation_batch_id", "") or "")
+                batch_short = batch_id[:8] if batch_id else "-"
                 
                 numbers = record.get("numbers", record.get("set_numbers", record.get("nums", [])))
                 if not numbers and isinstance(record, dict):
                     flat_nums = []
-                    for k in ["n1", "n2", "n3", "n4", "n5", "n6", "bonus", "num1", "num2", "num3", "num4", "num5", "num6", "drwtNo6"]:
-                        if k in record:
-                            flat_nums.append(record[k])
+                    for i in range(1, 7):
+                        value = next(
+                            (record[key] for key in (f"n{i}", f"num{i}", f"drwtNo{i}")
+                             if record.get(key) is not None),
+                            0,
+                        )
+                        flat_nums.append(value)
+                    bonus = next(
+                        (record[key] for key in ("bonus", "bnusNo", "n7") if record.get(key) is not None),
+                        0,
+                    )
+                    flat_nums.append(bonus)
                     if flat_nums:
                         numbers = flat_nums
 
@@ -311,6 +470,8 @@ class GeneratedSetsWidget(QWidget):
                 # 1. Sequential ID Item
                 item_id = QTableWidgetItem(str(seq_id))
                 item_id.setTextAlignment(Qt.AlignCenter)
+                item_id.setData(Qt.UserRole, int(record.get("id", 0) or 0))
+                item_id.setData(Qt.UserRole + 1, batch_id)
                 self.table.setItem(row, 1, item_id)
 
                 # 2. Date Item
@@ -421,6 +582,14 @@ class GeneratedSetsWidget(QWidget):
                 item_prob.setForeground(prob_color)
                 self.table.setItem(row, 15, item_prob)
 
+                # 16. Batch Column
+                item_batch = QTableWidgetItem(batch_short)
+                item_batch.setTextAlignment(Qt.AlignCenter)
+                item_batch.setForeground(QColor("#34495e") if batch_id else QColor("#95a5a6"))
+                item_batch.setToolTip(batch_id if batch_id else "No batch id")
+                item_batch.setData(Qt.UserRole, batch_id)
+                self.table.setItem(row, 16, item_batch)
+
             self.table.setSortingEnabled(True)
             _log.info("Generated sets history successfully loaded with isolated Rounds and Ranks formatting.")
         except Exception as e:
@@ -457,11 +626,6 @@ class GeneratedSetsWidget(QWidget):
                 bonus_no = random.choice(remaining)
 
             latest_winning_tuple = (set(), 0)
-            try:
-                draws = LottoDBHelper.get_generation_history()
-            except Exception:
-                pass
-
             result = LottoEvaluator.optimize_bonus_swap(nums, bonus_no, latest_winning_tuple)
             if result.get("status") == "error":
                 QMessageBox.warning(self, "Error", result.get("message", "Optimization failed."))
@@ -522,3 +686,276 @@ class GeneratedSetsWidget(QWidget):
         except Exception as e:
             _log.error(f"Failed to export data: {e}")
             QMessageBox.critical(self, "Error", f"Failed to export data: {e}")
+
+    def _resolve_target_row(self) -> int:
+        current_row = self.table.currentRow()
+        if current_row >= 0:
+            return int(current_row)
+
+        for row in range(self.table.rowCount()):
+            cell_widget = self.table.cellWidget(row, 0)
+            if not cell_widget:
+                continue
+            chk = cell_widget.findChild(QCheckBox)
+            if chk and chk.isChecked():
+                return int(row)
+        return -1
+
+    def _get_row_batch_id(self, row: int) -> str:
+        if row < 0:
+            return ""
+        batch_item = self.table.item(row, 16)
+        if batch_item is None:
+            return ""
+        return str(batch_item.data(Qt.UserRole) or "").strip()
+
+    def clear_batch_filter(self):
+        try:
+            for row in range(self.table.rowCount()):
+                self.table.setRowHidden(row, False)
+        except Exception as e:
+            _log.error(f"Failed to clear batch filter: {e}", exc_info=True)
+
+    def filter_rows_by_selected_batch(self):
+        try:
+            target_row = self._resolve_target_row()
+            if target_row < 0:
+                QMessageBox.warning(self, "Filter Warning", "Please select a row (or check one) to filter by batch.")
+                return
+
+            batch_id = self._get_row_batch_id(target_row)
+            if not batch_id:
+                QMessageBox.warning(self, "Filter Warning", "Selected row has no generation batch id.")
+                return
+
+            visible_count = 0
+            for row in range(self.table.rowCount()):
+                row_batch = self._get_row_batch_id(row)
+                should_show = bool(row_batch and row_batch == batch_id)
+                self.table.setRowHidden(row, not should_show)
+                if should_show:
+                    visible_count += 1
+
+            QMessageBox.information(self, "Batch Filter Applied", f"Showing {visible_count} row(s) for batch:\n{batch_id}")
+        except Exception as e:
+            _log.error(f"Failed to filter rows by batch: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to filter rows by batch: {e}")
+
+    def show_session_details(self):
+        try:
+            target_row = self._resolve_target_row()
+            if target_row < 0:
+                QMessageBox.warning(self, "Session Details", "Please select a row (or check one) first.")
+                return
+
+            id_item = self.table.item(target_row, 1)
+            session_id = int(id_item.data(Qt.UserRole)) if id_item is not None and id_item.data(Qt.UserRole) else 0
+            if session_id <= 0:
+                QMessageBox.warning(self, "Session Details", "Invalid session id for selected row.")
+                return
+
+            session_payload = (
+                LottoDBHelper.get_generation_session_by_id(session_id)
+                if hasattr(LottoDBHelper, "get_generation_session_by_id")
+                else None
+            )
+            if not isinstance(session_payload, dict) and hasattr(LottoDBHelper, "get_all_generation_history"):
+                all_sessions = LottoDBHelper.get_all_generation_history(
+                    max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT
+                )
+                session_payload = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
+            if not isinstance(session_payload, dict):
+                QMessageBox.warning(self, "Session Details", "Could not find selected session payload.")
+                return
+
+            dlg = SessionDetailsDialog(session_payload, self)
+            dlg.exec_()
+        except Exception as e:
+            _log.error(f"Failed to show session details: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to show session details: {e}")
+
+    def export_batch_report(self):
+        try:
+            target_row = self._resolve_target_row()
+            if target_row < 0:
+                QMessageBox.warning(self, "Export Warning", "Please select a row (or check one) to export batch report.")
+                return
+
+            id_item = self.table.item(target_row, 1)
+            session_id = int(id_item.data(Qt.UserRole)) if id_item is not None and id_item.data(Qt.UserRole) else 0
+            if session_id <= 0:
+                QMessageBox.warning(self, "Export Warning", "Invalid session id for selected row.")
+                return
+
+            selected_session = (
+                LottoDBHelper.get_generation_session_by_id(session_id)
+                if hasattr(LottoDBHelper, "get_generation_session_by_id")
+                else None
+            )
+            if not isinstance(selected_session, dict) and hasattr(LottoDBHelper, "get_all_generation_history"):
+                all_sessions_fallback = LottoDBHelper.get_all_generation_history(
+                    max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT
+                )
+                selected_session = next(
+                    (row for row in all_sessions_fallback if int(row.get("id", 0) or 0) == session_id),
+                    None,
+                )
+            if not isinstance(selected_session, dict):
+                QMessageBox.warning(self, "Export Warning", "Could not find selected session payload.")
+                return
+
+            batch_id = self._get_row_batch_id(target_row)
+            if not batch_id:
+                batch_id = str(
+                    selected_session.get("generation_batch_id")
+                    or (selected_session.get("metadata", {}) if isinstance(selected_session.get("metadata"), dict) else {}).get("generation_batch_id")
+                    or f"session-{session_id}"
+                ).strip()
+
+            batch_summaries = LottoDBHelper.get_generation_batch_history() if hasattr(LottoDBHelper, "get_generation_batch_history") else []
+            batch_summary = next((row for row in batch_summaries if str(row.get("batch_id", "")) == batch_id), None)
+            if not isinstance(batch_summary, dict):
+                batch_summary = {
+                    "batch_id": batch_id,
+                    "is_fallback_batch": str(batch_id).startswith("session-"),
+                    "session_count": 1,
+                    "set_count": len(selected_session.get("sets_detail", [])) if isinstance(selected_session.get("sets_detail"), list) else 0,
+                    "algorithm_titles": [selected_session.get("algorithm_title", "")],
+                    "first_timestamp": selected_session.get("timestamp", ""),
+                    "latest_timestamp": selected_session.get("timestamp", ""),
+                    "has_top_ranked": bool((selected_session.get("metadata", {}) if isinstance(selected_session.get("metadata"), dict) else {}).get("top_ranked_combinations")),
+                    "score_weight_profile": (selected_session.get("metadata", {}) if isinstance(selected_session.get("metadata"), dict) else {}).get("score_weight_profile", {}),
+                }
+
+            sessions_for_batch = (
+                LottoDBHelper.get_generation_sessions_by_batch_id(batch_id)
+                if hasattr(LottoDBHelper, "get_generation_sessions_by_batch_id")
+                else []
+            )
+            if (not sessions_for_batch) and hasattr(LottoDBHelper, "get_all_generation_history"):
+                all_sessions_fallback = LottoDBHelper.get_all_generation_history(
+                    max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT
+                )
+                for session in all_sessions_fallback:
+                    if not isinstance(session, dict):
+                        continue
+                    candidate_batch = str(
+                        session.get("generation_batch_id")
+                        or (session.get("metadata", {}) if isinstance(session.get("metadata"), dict) else {}).get("generation_batch_id")
+                        or ""
+                    ).strip()
+                    if candidate_batch and candidate_batch == batch_id:
+                        sessions_for_batch.append(session)
+                if not sessions_for_batch and str(batch_id).startswith("session-"):
+                    try:
+                        fallback_id = int(str(batch_id).replace("session-", ""))
+                    except Exception:
+                        fallback_id = session_id
+                    sessions_for_batch = [s for s in all_sessions_fallback if int(s.get("id", 0) or 0) == fallback_id]
+
+            if not sessions_for_batch:
+                sessions_for_batch = [selected_session]
+
+            report_text = build_generation_batch_report_text(batch_summary, sessions_for_batch)
+            default_name = f"lotto_generation_batch_report_{batch_id[:12] if batch_id else session_id}.txt"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Generation Batch Report",
+                default_name,
+                "Text Files (*.txt);;All Files (*)",
+            )
+            if not file_path:
+                return
+
+            with open(file_path, mode="w", encoding="utf-8") as f:
+                f.write(report_text)
+
+            QMessageBox.information(self, "Success", f"Successfully exported batch report to:\n{file_path}")
+            _log.info("Exported generation batch report: batch_id=%s path=%s", batch_id, file_path)
+        except Exception as e:
+            _log.error(f"Failed to export batch report: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to export batch report: {e}")
+
+    def export_top_ranked_session(self):
+        try:
+            target_row = self._resolve_target_row()
+            if target_row < 0:
+                QMessageBox.warning(self, "Export Warning", "Please select a row (or check one) to export session rankings.")
+                return
+
+            id_item = self.table.item(target_row, 1)
+            session_id = int(id_item.data(Qt.UserRole)) if id_item is not None and id_item.data(Qt.UserRole) else 0
+            if session_id <= 0:
+                QMessageBox.warning(self, "Export Warning", "Invalid session id for selected row.")
+                return
+
+            session_payload = (
+                LottoDBHelper.get_generation_session_by_id(session_id)
+                if hasattr(LottoDBHelper, "get_generation_session_by_id")
+                else None
+            )
+            if not isinstance(session_payload, dict) and hasattr(LottoDBHelper, "get_all_generation_history"):
+                all_sessions = LottoDBHelper.get_all_generation_history(
+                    max_sessions=self.DEFAULT_UI_HISTORY_SESSION_LIMIT
+                )
+                session_payload = next((row for row in all_sessions if int(row.get("id", 0) or 0) == session_id), None)
+            if not isinstance(session_payload, dict):
+                QMessageBox.warning(self, "Export Warning", "Could not find selected session payload.")
+                return
+
+            session_meta = session_payload.get("metadata", {}) if isinstance(session_payload.get("metadata"), dict) else {}
+            top_ranked = session_meta.get("top_ranked_combinations", [])
+            if not isinstance(top_ranked, list) or not top_ranked:
+                QMessageBox.warning(self, "Export Warning", "No Top-50 ranking data stored for this session.")
+                return
+
+            default_name = f"lotto_top_ranked_session_{session_id}.json"
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Export Session Top-50 Rankings",
+                default_name,
+                "JSON Files (*.json);;CSV Files (*.csv);;All Files (*)",
+            )
+            if not file_path:
+                return
+
+            if file_path.lower().endswith(".csv"):
+                headers = [
+                    "rank", "n1", "n2", "n3", "n4", "n5", "n6",
+                    "confidence_score", "probability_score", "pattern_score",
+                    "ai_score", "genetic_score", "ensemble_score",
+                ]
+                with open(file_path, mode="w", newline="", encoding="utf-8-sig") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(headers)
+                    for row in top_ranked:
+                        nums = row.get("numbers", []) if isinstance(row, dict) else []
+                        nums = list(nums[:6]) if isinstance(nums, list) else []
+                        while len(nums) < 6:
+                            nums.append("")
+                        writer.writerow([
+                            row.get("rank", ""),
+                            nums[0], nums[1], nums[2], nums[3], nums[4], nums[5],
+                            row.get("confidence_score", ""),
+                            row.get("probability_score", ""),
+                            row.get("pattern_score", ""),
+                            row.get("ai_score", ""),
+                            row.get("genetic_score", ""),
+                            row.get("ensemble_score", ""),
+                        ])
+            else:
+                export_payload = {
+                    "session_id": session_id,
+                    "algorithm_title": session_payload.get("algorithm_title", ""),
+                    "generation_batch_id": session_payload.get("generation_batch_id", session_meta.get("generation_batch_id", "")),
+                    "score_weight_profile": session_meta.get("score_weight_profile", {}),
+                    "top_ranked_combinations": top_ranked,
+                }
+                with open(file_path, mode="w", encoding="utf-8") as f:
+                    json.dump(export_payload, f, ensure_ascii=False, indent=2)
+
+            QMessageBox.information(self, "Success", f"Successfully exported Top-50 rankings to:\n{file_path}")
+            _log.info("Exported session Top-50 rankings: session_id=%s path=%s", session_id, file_path)
+        except Exception as e:
+            _log.error(f"Failed to export session Top-50 rankings: {e}", exc_info=True)
+            QMessageBox.critical(self, "Error", f"Failed to export session Top-50 rankings: {e}")

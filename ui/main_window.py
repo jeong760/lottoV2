@@ -48,6 +48,7 @@ from ui.widgets.statistical_metrics_widget import StatisticalMetricsWidget
 from ui.widgets.decade_dist_widget import DecadeDistWidget
 from ui.widgets.consecutive_widget import ConsecutiveWidget
 from ui.widgets.ai_training_widget import AITrainingWidget
+from ui.widgets.real_time_analytics_widget import RealTimeAnalyticsWidget
 
 
 class LottoMainWindow(QMainWindow):
@@ -243,6 +244,9 @@ class LottoMainWindow(QMainWindow):
         self.generated_sets_widget = GeneratedSetsWidget()
         self.tab_widget.addTab(self.generated_sets_widget, "Generated Sets")
 
+        self.real_time_analytics_widget = RealTimeAnalyticsWidget()
+        self.tab_widget.addTab(self.real_time_analytics_widget, "Real-Time Analytics")
+
         self.backtest_widget = BacktestWidget()
         self.tab_widget.addTab(self.backtest_widget, "Algorithm Backtesting")
 
@@ -301,8 +305,17 @@ class LottoMainWindow(QMainWindow):
             if hasattr(self.sim_controller, 'worker') and self.sim_controller.worker is not None:
                 try:
                     if self.sim_controller.worker.isRunning():
+                        if not getattr(self, "_worker_close_pending", False):
+                            self._worker_close_pending = True
+                            self.sim_controller.worker.finished.connect(self._close_after_worker_finished)
+                        if hasattr(self.sim_controller.worker, "stop"):
+                            self.sim_controller.worker.stop()
                         self.sim_controller.worker.quit()
                         self.sim_controller.worker.wait(1000)
+                        if self.sim_controller.worker.isRunning():
+                            event.ignore()
+                            return
+                        self._worker_close_pending = False
                 except Exception as re:
                     _log.warning(f"Exception while closing worker: {re}", exc_info=True)
                 self.sim_controller.worker = None
@@ -318,6 +331,12 @@ class LottoMainWindow(QMainWindow):
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] Error during close event handling: {e}\n{traceback.format_exc()}")
         event.accept()
+
+    def _close_after_worker_finished(self):
+        if not getattr(self, "_worker_close_pending", False):
+            return
+        self._worker_close_pending = False
+        self.close()
 
     def update_turbine_physics(self):
         try:

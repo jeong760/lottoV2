@@ -25,10 +25,10 @@ statsmodels>=0.14.5
 xgboost>=2.0,<4
 
 # LightGBM: flexible within current major version
-lightgbm>=3.0,<5
+lightgbm>=4.7.0,<5
 
 # CatBoost: flexible within current major version
-catboost>=1.0,<2
+catboost>=1.2.10,<2
 
 # torch: minimum retained for GPU/runtime compatibility
 torch>=2.12.0

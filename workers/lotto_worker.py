@@ -22,8 +22,42 @@ from PyQt5.QtCore import QThread, pyqtSignal
 from config import SUM_MIN, SUM_MAX
 from data.repositories.lotto_repository import LottoRepository
 from utils.audit_security import AuditTrailSecurity
+from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
+from core.generation_schema import (
+    build_frequency_map_from_history,
+    build_generation_metadata,
+    build_generation_stats,
+    build_top_ranked_combinations,
+    derive_score_weights_from_history,
+    resolve_total_algorithms_active,
+)
+from core.quality_gate import calculate_ac_value, passes_quality_gate
 
 _log = logging.getLogger("LottoTurbineWorker")
+
+
+class _RestrictedUnpickler(pickle.Unpickler):
+    _SAFE_BUILTINS = {
+        "dict": dict,
+        "list": list,
+        "tuple": tuple,
+        "set": set,
+        "frozenset": frozenset,
+        "str": str,
+        "int": int,
+        "float": float,
+        "bool": bool,
+        "bytes": bytes,
+    }
+
+    def find_class(self, module, name):
+        if module == "builtins" and name in self._SAFE_BUILTINS:
+            return self._SAFE_BUILTINS[name]
+        raise pickle.UnpicklingError(f"unsafe class requested: {module}.{name}")
+
+
+def _safe_pickle_load(file_obj):
+    return _RestrictedUnpickler(file_obj).load()
 
 class LottoWorker(QThread):
     """
@@ -35,13 +69,22 @@ class LottoWorker(QThread):
     finished_signal = pyqtSignal(list, list, dict, dict)  # all_sets, discards, stats, metadata
     error_signal = pyqtSignal(str)
 
-    def __init__(self, engine, set_count: int = 5, algorithm_title: str = "Statistical Distribution Model", fixed_numbers: list = None, excluded_numbers: list = None):
+    def __init__(
+        self,
+        engine,
+        set_count: int = 5,
+        algorithm_title: str = "Statistical Distribution Model",
+        algorithm_id: str = "ensemble_auto",
+        fixed_numbers: list = None,
+        excluded_numbers: list = None,
+    ):
         super().__init__()
         self.engine = engine
         self.set_count = set_count
-        self.algorithm_title = algorithm_title
+        self.algorithm_id = resolve_algorithm_mode_id(algorithm_id)
+        self.algorithm_title = algorithm_title or get_mode_title(self.algorithm_id)
         
-        # æ»¿¸«— ≈∏¿‘ ∫Ø»Ø π◊ « ≈Õ ¡§¡¶
+        # ÏïàÏ†ÑÌïú ÌÉÄÏûÖ Î≥ÄÌôò Î∞è ÌïÑÌÑ∞ Ï†ïÏ†ú
         self.fixed_numbers = [int(n) for n in (fixed_numbers or []) if 1 <= n <= 45]
         raw_excluded = [int(n) for n in (excluded_numbers or []) if 1 <= n <= 45]
         self.excluded_numbers = [n for n in raw_excluded if n not in self.fixed_numbers]
@@ -60,7 +103,9 @@ class LottoWorker(QThread):
         if os.path.exists(model_path):
             try:
                 with open(model_path, "rb") as f:
-                    data = pickle.load(f)
+                    data = _safe_pickle_load(f)
+                    if not isinstance(data, dict):
+                        return None
                     _log.info("AI model weights successfully loaded into LottoWorker.")
                     return data
             except Exception as e:
@@ -88,79 +133,71 @@ class LottoWorker(QThread):
         return []
 
     def _calculate_ac_value(self, numbers: list) -> int:
-        try:
-            diffs = set()
-            n = len(numbers)
-            for i in range(n):
-                for j in range(i + 1, n):
-                    diffs.add(abs(numbers[i] - numbers[j]))
-            return max(0, len(diffs) - (n - 1))
-        except Exception:
-            return 7
+        return int(calculate_ac_value(numbers))
 
     def _passes_quality_gate(self, raw_set: list, latest_draw_nums: list) -> bool:
         try:
-            if not isinstance(raw_set, list) or len(raw_set) != 6:
-                return False
-
-            total_sum = sum(raw_set)
-            if not (SUM_MIN <= total_sum <= SUM_MAX):
-                return False
-
-            odd_count = sum(1 for n in raw_set if n % 2 != 0)
-            if odd_count == 0 or odd_count == 6:
-                return False
-
-            high_count = sum(1 for n in raw_set if n >= 23)
-            if high_count == 0 or high_count == 6:
-                return False
-
-            ac = self._calculate_ac_value(raw_set)
-            if ac < 4:
-                return False
-
-            consecutive_streak = 1
-            max_consecutive = 1
-            for i in range(len(raw_set) - 1):
-                if raw_set[i+1] == raw_set[i] + 1:
-                    consecutive_streak += 1
-                    max_consecutive = max(max_consecutive, consecutive_streak)
-                else:
-                    consecutive_streak = 1
-            if max_consecutive > 3:
-                return False
-
-            decades = {(n - 1) // 10 for n in raw_set}
-            if len(decades) < 3:
-                return False
-
-            if latest_draw_nums:
-                overlap_count = len(set(raw_set).intersection(set(latest_draw_nums)))
-                if overlap_count > 2:
-                    return False
-
-            return True
+            return passes_quality_gate(
+                raw_set,
+                latest_draw_numbers=latest_draw_nums,
+                strict=True,
+                sum_min=SUM_MIN,
+                sum_max=SUM_MAX,
+                high_low_cutoff=23,
+                min_ac_value=4,
+                min_span=None,
+                min_decades=3,
+                max_overlap_with_latest=2,
+                max_consecutive_run=3,
+            )
         except Exception as e:
             _log.warning(f"Error in _passes_quality_gate: {e}", exc_info=True)
-            return True  # øπø‹ Ω√ ≈Î∞˙Ω√ƒ— ≈©∑°Ω√ πÊ¡ˆ
+            return False
 
     def run(self):
         try:
             _log.info(f"Venus Turbine Worker started generating {self.set_count} sets using [{self.algorithm_title}]...")
             all_generated_sets = []
-            full_sets_for_db = []
             
-            # √÷Ω≈ ¥Á√∑ π¯»£ ƒ≥ΩÃ (º∫¥… √÷¿˚»≠)
+            # ÏµúÏã† ÎãπÏ≤® Î≤àÌò∏ Ï∫êÏã± (ÏÑ±Îä• ÏµúÏ†ÅÌôî)
             latest_draw_nums = self._get_latest_draw_numbers()
 
             prediction_sets = []
+            prediction_sets_snapshot = []
+            strategy_title = self.algorithm_title
+            strategy_sources = []
+            strategy_scores = []
+            contributor_hint = 0
             if self.engine and hasattr(self.engine, "generate_prediction_sets"):
                 try:
                     prediction_sets = self.engine.generate_prediction_sets(
                         set_count=self.set_count * 6, 
+                        selected_algorithm_id=self.algorithm_id,
                         fixed_numbers=self.fixed_numbers, 
                         excluded_numbers=self.excluded_numbers
                     ) or []
+                    prediction_sets_snapshot = list(prediction_sets)
+                    for pred in prediction_sets:
+                        if not isinstance(pred, dict):
+                            continue
+                        pred_title = pred.get("algorithm_title")
+                        if pred_title:
+                            strategy_title = str(pred_title)
+                        pred_source = pred.get("source")
+                        if pred_source and pred_source not in strategy_sources:
+                            strategy_sources.append(str(pred_source))
+                        pred_score = pred.get("score")
+                        if pred_score is not None:
+                            try:
+                                strategy_scores.append(float(pred_score))
+                            except (TypeError, ValueError):
+                                pass
+                        pred_contributors = pred.get("contributing_algorithms")
+                        if pred_contributors is not None:
+                            try:
+                                contributor_hint = max(contributor_hint, int(pred_contributors))
+                            except (TypeError, ValueError):
+                                pass
                 except Exception as ex:
                     _log.warning(f"Engine generation fallback triggered: {ex}", exc_info=True)
 
@@ -214,7 +251,6 @@ class LottoWorker(QThread):
                 full_draw = raw_set + [bonus_ball]
 
                 all_generated_sets.append(raw_set)
-                full_sets_for_db.append(full_draw)
 
                 self.set_ready_signal.emit(set_idx, full_draw)
                 time.sleep(0.005)
@@ -227,36 +263,58 @@ class LottoWorker(QThread):
             primary_numbers = all_generated_sets[0] if all_generated_sets else [3, 12, 24, 27, 35, 42]
             all_nums = set(range(1, 46))
             discards = sorted(list(all_nums - set(primary_numbers)))[:6]
+            confidence_score = (
+                round(float(sum(strategy_scores) / len(strategy_scores)), 2)
+                if strategy_scores
+                else (94.2 if self.ai_weights else 90.5)
+            )
+            raw_history = getattr(getattr(self.engine, "engine", self.engine), "historical_draws", [])
+            frequency_map = build_frequency_map_from_history(raw_history, lookback=120)
+            score_weights = derive_score_weights_from_history(raw_history, lookback=120)
+            ranked_candidates = []
+            for pred in prediction_sets_snapshot:
+                if not isinstance(pred, dict):
+                    continue
+                pred_numbers = pred.get("numbers", [])
+                try:
+                    pred_score = float(pred.get("score", confidence_score))
+                except (TypeError, ValueError):
+                    pred_score = float(confidence_score)
+                ranked_candidates.append((pred_score, pred_numbers))
 
-            stats = {
-                "sum": sum(primary_numbers),
-                "odd_count": sum(1 for n in primary_numbers if n % 2 != 0),
-                "even_count": sum(1 for n in primary_numbers if n % 2 == 0),
-                "high_count": sum(1 for n in primary_numbers if n >= 23),
-                "low_count": sum(1 for n in primary_numbers if n < 23),
-                "ac_value": self._calculate_ac_value(primary_numbers),
-                "confidence": 94.2 if self.ai_weights else 90.5,
-                "contributors": 500
-            }
+            if not ranked_candidates:
+                ranked_candidates = [(float(confidence_score), nums) for nums in all_generated_sets]
 
-            metadata = {
-                "algorithm_title": self.algorithm_title,
-                "round_info": "Live Draw",
-                "total_algorithms_active": 500,
-                "confidence_score": 94.2 if self.ai_weights else 90.5,
-                "discarded_count": discarded_total,
-                "leading_algorithms": [
-                    self.algorithm_title,
+            top_ranked_combinations = build_top_ranked_combinations(
+                ranked_candidates,
+                limit=50,
+                frequency_map=frequency_map,
+                score_weights=score_weights,
+            )
+            total_algorithms_active = resolve_total_algorithms_active(self.engine, default=0)
+            if total_algorithms_active <= 0:
+                total_algorithms_active = max(1, len(strategy_sources) + 1)
+            contributors = max(1, contributor_hint or total_algorithms_active)
+
+            stats = build_generation_stats(primary_numbers, confidence_score, contributors)
+            metadata = build_generation_metadata(
+                algorithm_id=self.algorithm_id,
+                algorithm_title=strategy_title,
+                total_algorithms_active=total_algorithms_active,
+                confidence_score=confidence_score,
+                round_info="Live Draw",
+                discarded_count=discarded_total,
+                leading_algorithms=[
+                    strategy_title,
+                    *strategy_sources[:2],
                     "Quality Gate Filtering Engine",
-                    "AI Neural Weight Ensembler" if self.ai_weights else "Statistical Matrix Evaluator"
-                ]
-            }
-
-            try:
-                LottoRepository.save_generation_history(self.set_count, full_sets_for_db, metadata)
-                _log.info("Generation history successfully saved to DB.")
-            except Exception as db_err:
-                _log.error(f"Failed to save generation history in worker: {db_err}", exc_info=True)
+                    "AI Neural Weight Ensembler" if self.ai_weights else "Statistical Matrix Evaluator",
+                ],
+                extras={
+                    "top_ranked_combinations": top_ranked_combinations,
+                    "score_weight_profile": {k: round(float(v), 4) for k, v in score_weights.items()},
+                },
+            )
 
             self.finished_signal.emit(all_generated_sets, discards, stats, metadata)
             _log.info("Venus Turbine Worker successfully finished generation cycle.")

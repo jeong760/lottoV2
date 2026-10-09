@@ -14,6 +14,7 @@ _log = logging.getLogger("SystemParametersWidget")
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QLineEdit, QComboBox, QSizePolicy
 from PyQt5.QtCore import Qt
+from core.algorithm_catalog import get_mode_titles, get_mode_title, resolve_algorithm_mode_id
 
 class ParameterRow(QWidget):
     """A clean key-value input row for system parameters."""
@@ -170,12 +171,18 @@ class SystemParametersWidget(QFrame):
         self.param_repeat = ParameterRow("Repeat", "1")
         self.param_drawing_count = ParameterRow("Drawing Count", "10")
         self.param_draw_type = ParameterComboRow("Draw Type", ["Live Draw", "Instant Simulation", "Batch Ensemble"], "Live Draw")
+        self.param_algorithm_mode = ParameterComboRow(
+            "Algorithm Mode",
+            get_mode_titles(include_random=False),
+            get_mode_title("ensemble_auto")
+        )
 
         right_col_layout.addWidget(self.param_draw_interval)
         right_col_layout.addWidget(self.param_training_set)
         right_col_layout.addWidget(self.param_repeat)
         right_col_layout.addWidget(self.param_drawing_count)
         right_col_layout.addWidget(self.param_draw_type)
+        right_col_layout.addWidget(self.param_algorithm_mode)
 
         columns_layout.addWidget(left_col_widget, stretch=1)
         columns_layout.addWidget(right_col_widget, stretch=1)
@@ -203,3 +210,15 @@ class SystemParametersWidget(QFrame):
         except ValueError:
             _log.warning("Invalid mix duration value specified. Falling back to default: 300")
             return 300  # Default fallback duration
+
+    def get_selected_algorithm_id(self) -> str:
+        """Returns the stable algorithm mode ID selected by the user."""
+        try:
+            selected_title = self.param_algorithm_mode.get_current_text()
+            return resolve_algorithm_mode_id(selected_title)
+        except Exception:
+            return "ensemble_auto"
+
+    def get_selected_algorithm(self) -> str:
+        """Returns the display title for the selected algorithm mode."""
+        return get_mode_title(self.get_selected_algorithm_id())

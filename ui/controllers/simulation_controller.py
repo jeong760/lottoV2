@@ -3,22 +3,19 @@
 import logging
 import random
 import time
+import uuid
 import psutil
 import traceback
 from PyQt5.QtCore import QTimer
 from workers.lotto_worker import LottoWorker
 from data.lotto_db_helper import LottoDBHelper
+from core.algorithm_catalog import (
+    DEFAULT_ALGORITHM_MODE_ID,
+    get_mode_title,
+    resolve_algorithm_mode_id,
+)
 
 _log = logging.getLogger("SimulationController")
-
-AVAILABLE_ALGO_GROUPS = [
-    "Statistical Distribution Model",
-    "Frequency Matrix Analyzer",
-    "Machine Learning Gradient Engine",
-    "AI Neural Predictor",
-    "Historical Pattern Matcher",
-    "Advanced Markov Chain Ensemble"
-]
 
 class SimulationController:
     """Controller responsible for managing number generation, Venus turbine simulation, and drawing states."""
@@ -38,6 +35,9 @@ class SimulationController:
         self.current_accumulated_discards = 0
         self.target_discards_to_accumulate = 0
         self.current_algo_title_display = ""
+        self.current_algo_mode_id = DEFAULT_ALGORITHM_MODE_ID
+        self.current_generation_metadata = {}
+        self.current_generation_batch_id = ""
         
         self.drawing_phase = 'IDLE'
         self.remaining_mixing_seconds = 300
@@ -73,25 +73,29 @@ class SimulationController:
     def on_generate_pressed(self, set_count: int):
         """Handle number generation request and initiate worker thread."""
         _log.info(f"[DEBUG] on_generate_pressed called with set_count={set_count}")
-        if self.is_generating:
+        if self.is_generating or (self.worker is not None and self.worker.isRunning()):
             _log.warning("Number generation and live simulation are already in progress.")
             return
 
         try:
             self.is_generating = True
             self.simulation_start_time = time.time()
+            self.current_generation_metadata = {}
+            self.current_generation_batch_id = uuid.uuid4().hex
             
             selected_algo = ""
             if hasattr(self.main_window, 'system_parameters_widget') and self.main_window.system_parameters_widget:
-                if hasattr(self.main_window.system_parameters_widget, 'get_selected_algorithm'):
+                if hasattr(self.main_window.system_parameters_widget, 'get_selected_algorithm_id'):
+                    selected_algo = self.main_window.system_parameters_widget.get_selected_algorithm_id()
+                elif hasattr(self.main_window.system_parameters_widget, 'get_selected_algorithm'):
                     selected_algo = self.main_window.system_parameters_widget.get_selected_algorithm()
                 elif hasattr(self.main_window.system_parameters_widget, 'algorithm_combo') and self.main_window.system_parameters_widget.algorithm_combo:
                     selected_algo = self.main_window.system_parameters_widget.algorithm_combo.currentText()
 
-            if not selected_algo or selected_algo == "Advanced AI Ensemble":
-                selected_algo = random.choice(AVAILABLE_ALGO_GROUPS)
+            selected_algo_id = resolve_algorithm_mode_id(selected_algo)
 
-            self.current_algo_title_display = selected_algo.split("(")[0].strip() if "(" in selected_algo else selected_algo
+            self.current_algo_mode_id = selected_algo_id
+            self.current_algo_title_display = get_mode_title(selected_algo_id)
             
             fixed_numbers = []
             excluded_numbers = []
@@ -117,6 +121,7 @@ class SimulationController:
 
             if hasattr(self.main_window, 'live_console_widget') and self.main_window.live_console_widget:
                 self.main_window.live_console_widget.log_message(f"Selected Algorithm (Dynamic Ensemble): {self.current_algo_title_display}")
+                self.main_window.live_console_widget.log_message(f"Selected Algorithm ID: {self.current_algo_mode_id}")
                 if fixed_numbers:
                     self.main_window.live_console_widget.log_message(f"User Fixed Numbers Applied: {fixed_numbers}")
                 if excluded_numbers:
@@ -147,13 +152,14 @@ class SimulationController:
                 self.main_window.engine, 
                 set_count=set_count, 
                 algorithm_title=self.current_algo_title_display,
+                algorithm_id=self.current_algo_mode_id,
                 fixed_numbers=fixed_numbers,
                 excluded_numbers=excluded_numbers
             )
             self.worker.finished_signal.connect(lambda sets, discards, stats, meta: self.on_generation_finished(sets, discards, stats, meta, set_count))
             self.worker.error_signal.connect(self.on_generate_error)
-            self.worker.finished_signal.connect(lambda *_: self._cleanup_worker())
-            self.worker.error_signal.connect(lambda *_: self._cleanup_worker())
+            worker = self.worker
+            worker.finished.connect(lambda worker=worker: self._cleanup_worker(worker))
             self.worker.start()
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] on_generate_pressed exception: {e}\n{traceback.format_exc()}")
@@ -165,10 +171,15 @@ class SimulationController:
         _log.info("[DEBUG] on_generation_finished called.")
         try:
             algo_title = ""
+            algo_mode_id = self.current_algo_mode_id
             leading_algos = []
             
             if metadata and isinstance(metadata, dict):
+                self.current_generation_metadata = dict(metadata)
                 meta_title = metadata.get("algorithm_title", "")
+                meta_mode_id = metadata.get("algorithm_id")
+                if meta_mode_id:
+                    algo_mode_id = resolve_algorithm_mode_id(meta_mode_id)
                 if meta_title and "Venus Turbine" not in meta_title:
                     algo_title = meta_title
                 leading_algos = metadata.get("leading_algorithms", [])
@@ -176,10 +187,11 @@ class SimulationController:
             if not algo_title and self.current_algo_title_display:
                 algo_title = self.current_algo_title_display
 
-            if not algo_title or algo_title == "Advanced AI Ensemble":
-                algo_title = random.choice(AVAILABLE_ALGO_GROUPS)
+            if not algo_title:
+                algo_title = get_mode_title(algo_mode_id)
 
-            self.current_algo_title_display = algo_title.split("(")[0].strip() if "(" in algo_title else algo_title
+            self.current_algo_mode_id = algo_mode_id
+            self.current_algo_title_display = algo_title
             
             if hasattr(self.main_window, 'live_console_widget') and self.main_window.live_console_widget:
                 self.main_window.live_console_widget.log_message(f"--- [Algorithm Execution Audit] ---")
@@ -375,10 +387,7 @@ class SimulationController:
                 full_set_with_bonus = sorted(valid_6_numbers) + [bonus_number]
                 
                 try:
-                    single_metadata = {
-                        "algorithm_title": self.current_algo_title_display if self.current_algo_title_display else random.choice(AVAILABLE_ALGO_GROUPS), 
-                        "confidence_score": 85.0
-                    }
+                    single_metadata = self._build_persistence_metadata(include_rankings=(self.current_set_index == 0))
                     if len(valid_6_numbers) == 6:
                         LottoDBHelper.save_generation_history(
                             set_count=1, generated_sets=[full_set_with_bonus], metadata=single_metadata
@@ -431,6 +440,23 @@ class SimulationController:
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] process_next_extraction_ball error: {e}\n{traceback.format_exc()}")
 
+    def _build_persistence_metadata(self, include_rankings: bool = False) -> dict:
+        base_meta = {
+            "algorithm_id": self.current_algo_mode_id,
+            "algorithm_title": self.current_algo_title_display if self.current_algo_title_display else get_mode_title(self.current_algo_mode_id),
+            "confidence_score": 85.0,
+            "generation_batch_id": self.current_generation_batch_id or f"batch-{int(time.time() * 1000)}",
+        }
+        source_meta = self.current_generation_metadata if isinstance(self.current_generation_metadata, dict) else {}
+        for key in ("algorithm_id", "algorithm_title", "confidence_score", "total_algorithms_active", "leading_algorithms", "score_weight_profile", "generation_batch_id"):
+            if key in source_meta:
+                base_meta[key] = source_meta.get(key)
+
+        top_ranked = source_meta.get("top_ranked_combinations", [])
+        if include_rankings and isinstance(top_ranked, list):
+            base_meta["top_ranked_combinations"] = top_ranked[:50]
+        return base_meta
+
     def on_stop_pressed(self):
         """Handle stop simulation request and reset timers/workers."""
         _log.info("[DEBUG] on_stop_pressed called.")
@@ -441,15 +467,17 @@ class SimulationController:
             if self.worker is not None:
                 try:
                     if self.worker.isRunning():
+                        if hasattr(self.worker, "stop"):
+                            self.worker.stop()
                         self.worker.quit()
-                        self.worker.wait(500)
+                        self.worker.wait(1000)
                 except Exception as re:
                     _log.warning(f"Worker closing warning: {re}", exc_info=True)
-                finally:
-                    self._cleanup_worker()
+                self._cleanup_worker(self.worker)
 
             self.is_generating = False
             self.drawing_phase = 'IDLE'
+            self.current_generation_batch_id = ""
 
             if hasattr(self.main_window, 'turbine_widget') and self.main_window.turbine_widget:
                 if hasattr(self.main_window.turbine_widget, 'extracted_balls'):
@@ -492,6 +520,7 @@ class SimulationController:
         self.turbine_timer.stop()
         self.is_generating = False
         self.drawing_phase = 'IDLE'
+        self.current_generation_batch_id = ""
         if hasattr(self.main_window, 'drawing_control_widget') and self.main_window.drawing_control_widget:
             self.main_window.drawing_control_widget.set_controls_enabled(True)
         if hasattr(self.main_window, 'turbine_widget') and self.main_window.turbine_widget:
@@ -518,11 +547,15 @@ class SimulationController:
             self.target_discards_to_accumulate = 45000
             self.current_accumulated_discards = 0
 
-    def _cleanup_worker(self):
+    def _cleanup_worker(self, worker=None):
         """Safely clean up worker thread resources."""
-        if self.worker:
+        worker = worker or self.worker
+        if worker:
             try:
-                self.worker.deleteLater()
+                if worker.isRunning():
+                    return
+                worker.deleteLater()
             except Exception as ex:
                 _log.warning(f"Failed to safely delete worker via deleteLater: {ex}", exc_info=True)
-            self.worker = None
+            if self.worker is worker:
+                self.worker = None
