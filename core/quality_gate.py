@@ -1,8 +1,7 @@
-# -*- coding: utf-8 -*-
 """Shared quality gate utilities for lotto candidate validation."""
-from __future__ import annotations
 
-from typing import Optional, Sequence
+from typing import Optional
+from collections.abc import Sequence
 
 from config import SUM_MIN, SUM_MAX
 
@@ -38,17 +37,17 @@ def _max_consecutive_run(numbers: Sequence[int]) -> int:
 
 def passes_quality_gate(
     numbers: Sequence[int],
-    latest_draw_numbers: Optional[Sequence[int]] = None,
+    latest_draw_numbers: Sequence[int] | None = None,
     *,
     strict: bool = True,
     sum_min: int = SUM_MIN,
     sum_max: int = SUM_MAX,
     high_low_cutoff: int = 23,
     min_ac_value: int = 4,
-    min_span: Optional[int] = 15,
+    min_span: int | None = 15,
     min_decades: int = 3,
-    max_overlap_with_latest: Optional[int] = 3,
-    max_consecutive_run: Optional[int] = None,
+    max_overlap_with_latest: int | None = 3,
+    max_consecutive_run: int | None = None,
 ) -> bool:
     try:
         cleaned = sorted({int(n) for n in numbers if 1 <= int(n) <= 45})

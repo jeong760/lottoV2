@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/consecutive_widget.py
 import sys
 import os

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # launcher.py
 import sys
 import os

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/ai_system_widget.py
 import sys
 import os

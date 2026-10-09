@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # utils/db_sync.py
 import os
 import shutil

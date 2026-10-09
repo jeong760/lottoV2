@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # test_db_inspect.py
 import sys
 import os

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/ai_status_widget.py
 import logging
 import os

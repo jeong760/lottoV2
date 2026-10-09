@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/high_low_widget.py
 import sys
 import os

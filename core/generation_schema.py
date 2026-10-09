@@ -1,13 +1,12 @@
-# -*- coding: utf-8 -*-
 """Shared schema builders for generation stats, ranking, and metadata."""
-from __future__ import annotations
 
 import statistics
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+from collections.abc import Iterable, Sequence
 
 from core.quality_gate import calculate_ac_value
 
-DEFAULT_SCORE_WEIGHTS: Dict[str, float] = {
+DEFAULT_SCORE_WEIGHTS: dict[str, float] = {
     "probability": 0.35,
     "pattern": 0.20,
     "ai": 0.25,
@@ -37,7 +36,7 @@ def resolve_total_algorithms_active(engine_like: Any, default: int = 0) -> int:
         return int(default)
 
 
-def build_generation_stats(numbers: Sequence[int], confidence: float, contributors: int) -> Dict[str, Any]:
+def build_generation_stats(numbers: Sequence[int], confidence: float, contributors: int) -> dict[str, Any]:
     cleaned = sorted(int(n) for n in numbers if 1 <= int(n) <= 45)[:6]
     if len(cleaned) < 6:
         cleaned = sorted(set(cleaned + [1, 8, 15, 23, 34, 42]))[:6]
@@ -63,10 +62,10 @@ def build_generation_metadata(
     total_algorithms_active: int,
     confidence_score: float,
     round_info: str = "Live Draw",
-    discarded_count: Optional[int] = None,
-    leading_algorithms: Optional[Iterable[str]] = None,
-    extras: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    discarded_count: int | None = None,
+    leading_algorithms: Iterable[str] | None = None,
+    extras: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     metadata = {
         "schema_version": "1.0",
         "algorithm_id": str(algorithm_id or "ensemble_auto"),
@@ -88,7 +87,7 @@ def build_generation_metadata(
     return metadata
 
 
-def build_frequency_map_from_history(history_draws: Sequence[Sequence[int]], lookback: int = 120) -> Dict[int, float]:
+def build_frequency_map_from_history(history_draws: Sequence[Sequence[int]], lookback: int = 120) -> dict[int, float]:
     """Builds a normalized 1~45 frequency map from recent historical draws."""
     counts = {n: 1.0 for n in range(1, 46)}
     if not history_draws:
@@ -117,7 +116,7 @@ def _clamp_score(value: float, lower: float = 0.0, upper: float = 100.0) -> floa
         return lower
 
 
-def _normalize_ratio_weights(values: Dict[str, float], keys: Sequence[str]) -> Dict[str, float]:
+def _normalize_ratio_weights(values: dict[str, float], keys: Sequence[str]) -> dict[str, float]:
     cleaned = {}
     for key in keys:
         try:
@@ -132,7 +131,7 @@ def _normalize_ratio_weights(values: Dict[str, float], keys: Sequence[str]) -> D
     return {key: float(cleaned[key] / total) for key in keys}
 
 
-def _resolve_score_weights(score_weights: Optional[Dict[str, float]] = None) -> Dict[str, float]:
+def _resolve_score_weights(score_weights: dict[str, float] | None = None) -> dict[str, float]:
     merged = dict(DEFAULT_SCORE_WEIGHTS)
     if isinstance(score_weights, dict):
         for key in DEFAULT_SCORE_WEIGHTS.keys():
@@ -153,7 +152,7 @@ def derive_score_weights_from_history(
     history_draws: Sequence[Sequence[int]],
     *,
     lookback: int = 120,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Derives score decomposition weights from historical volatility/concentration.
     This enables adaptive, data-driven calibration for Top-ranked combination scoring.
@@ -167,7 +166,7 @@ def derive_score_weights_from_history(
     except Exception:
         return _resolve_score_weights(base)
 
-    cleaned_draws: List[List[int]] = []
+    cleaned_draws: list[list[int]] = []
     for draw in recent:
         try:
             nums = sorted({int(n) for n in draw if 1 <= int(n) <= 45})
@@ -180,8 +179,8 @@ def derive_score_weights_from_history(
         return _resolve_score_weights(base)
 
     number_counts = {n: 0 for n in range(1, 46)}
-    sums: List[int] = []
-    odd_counts: List[int] = []
+    sums: list[int] = []
+    odd_counts: list[int] = []
     for draw in cleaned_draws:
         sums.append(int(sum(draw)))
         odd_counts.append(int(sum(1 for n in draw if n % 2 != 0)))
@@ -241,7 +240,7 @@ def _pattern_score(numbers: Sequence[int]) -> float:
     return _clamp_score(score)
 
 
-def _ai_score(numbers: Sequence[int], frequency_map: Optional[Dict[int, float]], probability_score: float) -> float:
+def _ai_score(numbers: Sequence[int], frequency_map: dict[int, float] | None, probability_score: float) -> float:
     if not frequency_map:
         return _clamp_score(50.0 + (probability_score - 50.0) * 0.35)
 
@@ -266,17 +265,17 @@ def _genetic_score(numbers: Sequence[int], rank_index: int, total_candidates: in
 
 
 def build_top_ranked_combinations(
-    scored_candidates: Sequence[Tuple[float, Sequence[int]]],
+    scored_candidates: Sequence[tuple[float, Sequence[int]]],
     *,
     limit: int = 50,
-    frequency_map: Optional[Dict[int, float]] = None,
-    score_weights: Optional[Dict[str, float]] = None,
-) -> List[Dict[str, Any]]:
+    frequency_map: dict[int, float] | None = None,
+    score_weights: dict[str, float] | None = None,
+) -> list[dict[str, Any]]:
     """
     Builds ranked combination payload with decomposed scores:
     confidence, probability, pattern, AI, genetic, ensemble.
     """
-    normalized: List[Tuple[float, List[int]]] = []
+    normalized: list[tuple[float, list[int]]] = []
     seen = set()
     for raw_score, raw_numbers in scored_candidates:
         try:

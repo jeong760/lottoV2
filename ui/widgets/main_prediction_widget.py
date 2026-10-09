@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/main_prediction_widget.py
 import sys
 import os

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/engines/statistics_engine.py
 import logging
 import math
@@ -21,7 +20,7 @@ class StatisticsEngine:
     """
 
     @staticmethod
-    def get_comprehensive_statistics() -> Dict[str, Any]:
+    def get_comprehensive_statistics() -> dict[str, Any]:
         """Safely conducts a full investigation of historical draws and returns a comprehensive statistical report."""
         try:
             all_draws = []
@@ -72,7 +71,7 @@ class StatisticsEngine:
                         except (ValueError, TypeError):
                             pass
                 
-                valid_nums = sorted(list(set([n for n in nums if 1 <= n <= 45])))
+                valid_nums = sorted(list({n for n in nums if 1 <= n <= 45}))
                 if len(valid_nums) == 6:
                     sums.append(sum(valid_nums))
                     
@@ -224,7 +223,7 @@ class StatisticsEngine:
     # =========================================================================
 
     @staticmethod
-    def analyze_periodicity_and_gaps(history_data: List[Dict[str, Any]]) -> Dict[int, Any]:
+    def analyze_periodicity_and_gaps(history_data: list[dict[str, Any]]) -> dict[int, Any]:
         """Bridges historical data formatting for periodicity and gap visualization widgets."""
         gaps = {i: 0 for i in range(1, 46)}
         try:
@@ -249,7 +248,7 @@ class StatisticsEngine:
         return gaps
 
     @staticmethod
-    def analyze_decade_and_digit_distribution(history_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def analyze_decade_and_digit_distribution(history_data: list[dict[str, Any]]) -> dict[str, Any]:
         """Bridges historical data formatting for decade distribution widgets."""
         decade_counts = {"1-10": 0, "11-20": 0, "21-30": 0, "31-40": 0, "41-45": 0}
         try:
@@ -267,7 +266,7 @@ class StatisticsEngine:
         return {"decade_distribution": decade_counts}
 
     @staticmethod
-    def chi_square_goodness_of_fit(history_data: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def chi_square_goodness_of_fit(history_data: list[dict[str, Any]]) -> dict[str, Any]:
         """Bridges historical data formatting for chi-square statistical metric widgets with sum normalization."""
         try:
             freq = np.zeros(45, dtype=np.float64)
@@ -302,7 +301,7 @@ class StatisticsEngine:
             return {"p_value": 1.0, "is_uniformly_distributed": True, "chi2_stat": 0.0}
 
     @staticmethod
-    def build_phase_c_analytics(history_data: List[Dict[str, Any]], lookback_draws: int = 120) -> Dict[str, Any]:
+    def build_phase_c_analytics(history_data: list[dict[str, Any]], lookback_draws: int = 120) -> dict[str, Any]:
         """
         Builds Phase-C analytics package:
         - Hot/Cold/Delayed/Overdue
@@ -643,7 +642,7 @@ class StatisticsEngine:
             return empty_payload
 
     @staticmethod
-    def _get_default_fallback_stats() -> Dict[str, Any]:
+    def _get_default_fallback_stats() -> dict[str, Any]:
         """Provides default structural data in case of exceptions or empty database."""
         fallback = {
             "total_draws": 1241,

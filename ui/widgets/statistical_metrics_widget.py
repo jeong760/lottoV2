@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/statistical_metrics_widget.py
 import sys
 import os

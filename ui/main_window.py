@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/main_window.py
 import sys
 import os

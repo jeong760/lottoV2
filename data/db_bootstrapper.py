@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # data/db_bootstrapper.py
 import sqlite3
 import os

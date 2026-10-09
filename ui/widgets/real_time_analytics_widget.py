@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/real_time_analytics_widget.py
 import sys
 import os

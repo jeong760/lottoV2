@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # workers/lotto_worker.py
 import logging
 import os

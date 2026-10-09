@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/ratio_balance_widget.py
 import sys
 import os

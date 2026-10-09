@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # data/db_guardian.py
 import os
 import shutil
@@ -17,7 +16,7 @@ class DBGuardian:
     """
 
     @staticmethod
-    def verify_and_heal_databases(db_paths: List[str]) -> bool:
+    def verify_and_heal_databases(db_paths: list[str]) -> bool:
         """
         Inspects a list of SQLite database paths. 
         Returns True if all databases are healthy or successfully healed.

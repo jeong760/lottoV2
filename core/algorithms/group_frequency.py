@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/algorithms/group_frequency.py
 sys = __import__('sys')
 os = __import__('os')
@@ -22,7 +21,7 @@ from data.repositories.lotto_repository import LottoRepository
 from core.algorithms.base import BaseAlgorithm, HistoricalContext, _normalize, register_algorithm
 
 
-def _extract_draw_numbers(draw: dict) -> List[int]:
+def _extract_draw_numbers(draw: dict) -> list[int]:
     """Helper utility to extract and validate 6 numbers from a historical draw record safely."""
     nums = []
     if not isinstance(draw, dict):
@@ -44,7 +43,7 @@ def _extract_draw_numbers(draw: dict) -> List[int]:
 # ==========================================
 
 @register_algorithm("freq_balanced_01", "[Balanced Practical] Bias-Preventing Weighted Dispersion Hybrid")
-def generate_balanced_hybrid() -> List[int]:
+def generate_balanced_hybrid() -> list[int]:
     """
     Smoothly adjusts weights to prevent specific number clustering and performs 
     probabilistic band-based sampling to ensure even dispersion across all 45 numbers, 

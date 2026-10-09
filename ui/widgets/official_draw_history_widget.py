@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/official_draw_history_widget.py
 import sys
 import os

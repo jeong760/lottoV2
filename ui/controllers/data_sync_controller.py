@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/controllers/data_sync_controller.py
 import logging
 import psutil

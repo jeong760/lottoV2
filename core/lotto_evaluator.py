@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/lotto_evaluator.py
 import sys
 import os
@@ -92,7 +91,7 @@ class LottoEvaluator:
             history_pool = sorted_history[:260]
 
         try:
-            gen_set = set(int(n) for n in generated_6_numbers if n is not None and str(n).isdigit() and 1 <= int(n) <= 45)
+            gen_set = {int(n) for n in generated_6_numbers if n is not None and str(n).isdigit() and 1 <= int(n) <= 45}
         except (ValueError, TypeError):
             gen_set = set()
 
@@ -211,7 +210,7 @@ class LottoEvaluator:
             return {"status": "error", "message": "Invalid 6 numbers set for Monte Carlo simulation."}
 
         try:
-            gen_set = set(int(n) for n in generated_6_numbers)
+            gen_set = {int(n) for n in generated_6_numbers}
             match_counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
             total_prize = 0
             sim_count = int(simulations_count)
@@ -275,7 +274,7 @@ class LottoEvaluator:
         def _safe_pct(part: float, total: float) -> float:
             return round((float(part) / float(total)) * 100.0, 4) if total > 0 else 0.0
 
-        def _classification_metrics(tp: int, fp: int, fn: int) -> Tuple[float, float, float]:
+        def _classification_metrics(tp: int, fp: int, fn: int) -> tuple[float, float, float]:
             precision = (float(tp) / float(tp + fp)) if (tp + fp) > 0 else 0.0
             recall = (float(tp) / float(tp + fn)) if (tp + fn) > 0 else 0.0
             f1 = (2.0 * precision * recall / (precision + recall)) if (precision + recall) > 0 else 0.0
@@ -288,7 +287,7 @@ class LottoEvaluator:
         algo_tp = 0
         algo_fp = 0
         algo_fn = 0
-        algo_union_sizes: List[int] = []
+        algo_union_sizes: list[int] = []
 
         rand_cost = 0
         rand_prize = 0
@@ -297,7 +296,7 @@ class LottoEvaluator:
         rand_tp = 0
         rand_fp = 0
         rand_fn = 0
-        rand_union_sizes: List[int] = []
+        rand_union_sizes: list[int] = []
 
         for draw in test_draws:
             draw_no = int(draw.get("draw_no", draw.get("drwNo", 0)))
@@ -344,7 +343,7 @@ class LottoEvaluator:
             algo_predicted_union = set()
             for s in generated_sets:
                 try:
-                    s_set = set(int(n) for n in s[:6])
+                    s_set = {int(n) for n in s[:6]}
                 except (ValueError, TypeError):
                     continue
                 if len(s_set) < 6:
@@ -510,9 +509,9 @@ class LottoEvaluator:
             winning_set, winning_bonus = latest_winning_tuple if latest_winning_tuple else (set(), 0)
             
             if winning_set:
-                target_winning = set(int(n) for n in winning_set)
+                target_winning = {int(n) for n in winning_set}
             else:
-                target_winning = set([7, 14, 22, 31, 38, 45])
+                target_winning = {7, 14, 22, 31, 38, 45}
 
             target_bonus = int(winning_bonus) if winning_bonus and int(winning_bonus) > 0 else int(bonus_number)
             

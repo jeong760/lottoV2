@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/algorithms/group_statistics.py
 import sys
 import os
@@ -20,7 +19,7 @@ from data.repositories.lotto_repository import LottoRepository
 from core.algorithms.base import BaseAlgorithm, HistoricalContext, _normalize, register_algorithm
 
 
-def _extract_draw_numbers(draw: dict) -> List[int]:
+def _extract_draw_numbers(draw: dict) -> list[int]:
     """Helper utility to extract and validate 6 numbers from a historical draw record safely."""
     nums = []
     if not isinstance(draw, dict):
@@ -42,7 +41,7 @@ def _extract_draw_numbers(draw: dict) -> List[int]:
 # ==========================================
 
 @register_algorithm("stat_001", "[Statistics] Empirical Normal Distribution & Goodness of Fit Analysis")
-def generate_by_normal_distribution() -> List[int]:
+def generate_by_normal_distribution() -> list[int]:
     """
     Computes genuine normal distribution probabilities (PDF) based on historical draw means and standard deviations 
     of winning numbers, blended with empirical frequency weights.
@@ -88,7 +87,7 @@ def generate_by_normal_distribution() -> List[int]:
 
 
 @register_algorithm("stat_002", "[Statistics] Weighted Exponential Moving Average (WEMA) Trend Analysis")
-def generate_by_moving_average() -> List[int]:
+def generate_by_moving_average() -> list[int]:
     """Applies a genuine Weighted Exponential Moving Average (WEMA) over recent historical windows to capture temporal momentum."""
     try:
         all_draws = LottoRepository.get_all_draws()

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ai/ai_learning_model.py
 import sys
 import os
@@ -9,7 +8,9 @@ import traceback
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from typing import List, Dict, Any, Tuple, Optional, Callable
+from typing import List, Dict, Any, Tuple, Optional
+
+from collections.abc import Callable
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -46,7 +47,7 @@ except ImportError:
 
 class TrainingProgressCallback(Callback if TF_AVAILABLE else object):
     """Keras Callback to stream real-time epoch, loss, and metrics to external listeners safely."""
-    def __init__(self, progress_callback: Optional[Callable] = None, total_epochs: int = 20):
+    def __init__(self, progress_callback: Callable | None = None, total_epochs: int = 20):
         super().__init__()
         self.progress_callback = progress_callback
         self.total_epochs = total_epochs
@@ -84,7 +85,7 @@ class LottoAILearningModel:
         self.bias_analysis = {}
         self.frequency_distribution = {}
 
-    def prepare_training_data(self, history_records: List[Any]) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def prepare_training_data(self, history_records: list[Any]) -> tuple[np.ndarray | None, np.ndarray | None]:
         """Prepares historical drawing records into tensor features for sequence training safely."""
         try:
             if not history_records or len(history_records) < 10:
@@ -133,7 +134,7 @@ class LottoAILearningModel:
             _log.critical(f"[CRITICAL DEBUG] prepare_training_data error: {e}\n{traceback.format_exc()}")
             return None, None
 
-    def build_lstm_model(self, input_shape: Tuple[int, int]) -> Optional[Any]:
+    def build_lstm_model(self, input_shape: tuple[int, int]) -> Any | None:
         if not TF_AVAILABLE:
             return None
         try:
@@ -152,7 +153,7 @@ class LottoAILearningModel:
             _log.error(f"Failed to build LSTM model: {e}", exc_info=True)
             return None
 
-    def build_gru_model(self, input_shape: Tuple[int, int]) -> Optional[Any]:
+    def build_gru_model(self, input_shape: tuple[int, int]) -> Any | None:
         if not TF_AVAILABLE:
             return None
         try:
@@ -171,7 +172,7 @@ class LottoAILearningModel:
             _log.error(f"Failed to build GRU model: {e}", exc_info=True)
             return None
 
-    def train_xgboost_model(self, history_records: List[Any]) -> Dict[int, float]:
+    def train_xgboost_model(self, history_records: list[Any]) -> dict[int, float]:
         default_weights = {i: 1.0 for i in range(1, 46)}
         if not XGB_AVAILABLE or not history_records or len(history_records) < 30:
             return default_weights
@@ -253,7 +254,7 @@ class LottoAILearningModel:
             _log.warning(f"Failed to train XGBoost model: {e}", exc_info=True)
             return default_weights
 
-    def _calculate_co_occurrence(self, history_records: List[Any]) -> Dict[Tuple[int, int], int]:
+    def _calculate_co_occurrence(self, history_records: list[Any]) -> dict[tuple[int, int], int]:
         co_occurrence = {}
         try:
             for record in history_records:
@@ -270,7 +271,7 @@ class LottoAILearningModel:
             _log.warning(f"Error in _calculate_co_occurrence: {e}", exc_info=True)
         return co_occurrence
 
-    def _calculate_transition_matrix(self, history_records: List[Any]) -> Dict[int, Dict[int, float]]:
+    def _calculate_transition_matrix(self, history_records: list[Any]) -> dict[int, dict[int, float]]:
         transitions = {i: {j: 0 for j in range(1, 46)} for i in range(1, 46)}
         try:
             sorted_records = sorted(history_records, key=lambda x: int(x.get("draw_no", x.get("drwNo", 0))) if isinstance(x, dict) else 0)
@@ -317,7 +318,7 @@ class LottoAILearningModel:
         except Exception:
             return float(np.mean(series_data))
 
-    def _extract_time_series_features_and_scores(self, history_records: List[Any]) -> Dict[int, float]:
+    def _extract_time_series_features_and_scores(self, history_records: list[Any]) -> dict[int, float]:
         default_scores = {i: 1.0 for i in range(1, 46)}
         if not history_records or len(history_records) < 20:
             return default_scores
@@ -365,7 +366,7 @@ class LottoAILearningModel:
             _log.warning(f"Error in _extract_time_series_features_and_scores: {e}", exc_info=True)
             return default_scores
 
-    def _analyze_gambler_fallacy_and_bias(self, history_records: List[Any]) -> Dict[str, Any]:
+    def _analyze_gambler_fallacy_and_bias(self, history_records: list[Any]) -> dict[str, Any]:
         last_seen = {i: -1 for i in range(1, 46)}
         frequency = {i: 0 for i in range(1, 46)}
 
@@ -376,7 +377,7 @@ class LottoAILearningModel:
                 if not nums and isinstance(record, dict):
                     nums = [record.get(f"drwtNo{i}") for i in range(1, 7)]
                 
-                valid_nums = set(int(n) for n in nums if n is not None and str(n).isdigit() and 1 <= int(n) <= 45)
+                valid_nums = {int(n) for n in nums if n is not None and str(n).isdigit() and 1 <= int(n) <= 45}
                 for n in valid_nums:
                     frequency[n] += 1
                     last_seen[n] = idx
@@ -404,7 +405,7 @@ class LottoAILearningModel:
             "frequency": frequency
         }
 
-    def train_model(self, history_records: List[Any], epochs: int = 20, batch_size: int = 16, progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
+    def train_model(self, history_records: list[Any], epochs: int = 20, batch_size: int = 16, progress_callback: Callable | None = None) -> dict[str, Any]:
         try:
             if history_records:
                 self.co_occurrence_matrix = self._calculate_co_occurrence(history_records)
@@ -454,7 +455,7 @@ class LottoAILearningModel:
             self.is_trained = True
             return {"status": f"Error: {str(e)}", "trained": False}
 
-    def get_model_state(self) -> Dict[str, Any]:
+    def get_model_state(self) -> dict[str, Any]:
         try:
             safe_co_occurrence = {
                 f"{k[0]},{k[1]}": v for k, v in self.co_occurrence_matrix.items()
@@ -475,7 +476,7 @@ class LottoAILearningModel:
             _log.warning(f"Error in get_model_state: {e}", exc_info=True)
             return {"lstm_trained": False}
 
-    def predict_optimized_set(self, frequency_weights: Optional[Dict[int, float]] = None) -> List[int]:
+    def predict_optimized_set(self, frequency_weights: dict[int, float] | None = None) -> list[int]:
         candidate_pool = list(range(1, 46))
         try:
             weights_map = frequency_weights
@@ -532,7 +533,7 @@ class LottoAILearningModel:
                 if max_same_end_digit >= 3: 
                     continue
 
-                zones = set((n - 1) // 10 for n in optimized_set)
+                zones = {(n - 1) // 10 for n in optimized_set}
                 if len(zones) < 3: 
                     continue
 

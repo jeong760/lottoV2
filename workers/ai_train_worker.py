@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # workers/ai_train_worker.py
 import logging
 import sys
@@ -180,7 +179,7 @@ class AITrainWorker(QThread):
                             except (ValueError, TypeError):
                                 pass
                     
-                    unique_nums = sorted(list(set(n for n in nums if 1 <= n <= 45)))
+                    unique_nums = sorted(list({n for n in nums if 1 <= n <= 45}))
                     if len(unique_nums) >= 6:
                         formatted_records.append(unique_nums[:6])
                 except Exception:
@@ -194,7 +193,7 @@ class AITrainWorker(QThread):
                             for k in ["num1", "num2", "num3", "num4", "num5", "num6", "drwtNo1", "drwtNo2", "drwtNo3", "drwtNo4", "drwtNo5", "drwtNo6"]:
                                 if record.get(k) is not None:
                                     nums.append(int(record.get(k)))
-                        unique_nums = sorted(list(set(n for n in nums if 1 <= n <= 45)))
+                        unique_nums = sorted(list({n for n in nums if 1 <= n <= 45}))
                         if len(unique_nums) >= 6:
                             formatted_records.append(unique_nums[:6])
                     except Exception:

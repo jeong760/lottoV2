@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/ai_training_widget.py
 import sys
 import os

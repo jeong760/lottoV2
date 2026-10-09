@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 # core/algorithms/base.py
-from __future__ import annotations
 import sys
 import os
 import logging
@@ -20,7 +18,9 @@ setup_logging(project_root)
 _log = logging.getLogger("AlgorithmBase")
 
 from dataclasses import dataclass
-from typing import List, Sequence, Dict, Tuple, Optional, Callable, Any, Union
+from typing import List, Dict, Tuple, Optional, Any, Union
+
+from collections.abc import Sequence, Callable
 
 NUMBERS = np.arange(1, 46, dtype=float)
 EPSILON = 1e-9
@@ -28,7 +28,7 @@ EPSILON = 1e-9
 # ==========================================
 # Algorithm registration decorator and global registry
 # ==========================================
-FUNCTION_ALGORITHM_REGISTRY: Dict[str, Dict[str, Any]] = {}
+FUNCTION_ALGORITHM_REGISTRY: dict[str, dict[str, Any]] = {}
 
 
 def register_algorithm(algorithm_id: str, title: str):
@@ -55,11 +55,11 @@ def _normalize(values: Sequence[float]) -> np.ndarray:
 
 
 def _stable_seed(signature: str, algorithm_name: str, salt: str = "") -> int:
-    payload = f"{signature}|{algorithm_name}|{salt}".encode("utf-8")
+    payload = f"{signature}|{algorithm_name}|{salt}".encode()
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big", signed=False)
 
 
-def _weighted_pick(weights: np.ndarray, rng: np.random.Generator) -> List[int]:
+def _weighted_pick(weights: np.ndarray, rng: np.random.Generator) -> list[int]:
     probabilities = _normalize(weights)
     if probabilities.size != 45:
         aligned = np.full(45, EPSILON, dtype=float)
@@ -97,7 +97,7 @@ def _calculate_ac_value(numbers: Sequence[int]) -> int:
 class AlgorithmOutcome:
     name: str
     category: str
-    numbers: List[int]
+    numbers: list[int]
     weights: np.ndarray
     confidence: float
 
@@ -128,16 +128,16 @@ class HistoricalContext:
     ac_mean: float
     ac_std: float
     signature: str
-    db_freq_weight: Optional[np.ndarray] = None
-    db_cooccur_weight: Optional[np.ndarray] = None
+    db_freq_weight: np.ndarray | None = None
+    db_cooccur_weight: np.ndarray | None = None
 
     @classmethod
     def build(
         cls, 
-        historical_draws: Optional[Sequence[Sequence[int]]] = None, 
-        ml_weights: Optional[np.ndarray] = None,
-        cooccur_weights: Optional[np.ndarray] = None
-    ) -> "HistoricalContext":
+        historical_draws: Sequence[Sequence[int]] | None = None, 
+        ml_weights: np.ndarray | None = None,
+        cooccur_weights: np.ndarray | None = None
+    ) -> HistoricalContext:
         """Builds historical context tensors and computes real statistical, entropy, and complexity metrics from draws."""
         cleaned = []
         for draw in historical_draws or []:

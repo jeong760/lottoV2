@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/engines/lotto_engine.py
 import sys
 import os
@@ -114,7 +113,7 @@ class LottoEngine:
         "random": {"random": 1.0},
     }
 
-    def __init__(self, historical_draws: List[List[int]] = None):
+    def __init__(self, historical_draws: list[list[int]] = None):
         _log.info("Initializing Enterprise LottoEngine with Fixed/Excluded Custom Filters & Advanced Sub-engines...")
         self.historical_draws = historical_draws or []
         self.algorithm_registry = {}
@@ -124,7 +123,7 @@ class LottoEngine:
 
         # Performance cache to avoid redundant heavy calculations
         self._cache = {}
-        self._strategy_candidate_cache: Dict[Tuple[str, int, int], List[Dict[str, Any]]] = {}
+        self._strategy_candidate_cache: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
 
         # Dynamic Ensemble Weighting: Initialize performance weights for strategies/personas
         self.persona_weights = {
@@ -153,9 +152,9 @@ class LottoEngine:
         # Registry/runtime state
         self.runtime_dependencies = self._detect_runtime_dependencies()
         self.master_algorithm_registry = None
-        self.class_algorithm_registry: Dict[str, Any] = {}
-        self.function_algorithm_registry: Dict[str, Any] = {}
-        self.function_algorithm_titles: Dict[str, str] = {}
+        self.class_algorithm_registry: dict[str, Any] = {}
+        self.function_algorithm_registry: dict[str, Any] = {}
+        self.function_algorithm_titles: dict[str, str] = {}
         self._HistoricalContext = None
         self._algorithm_context = None
 
@@ -184,7 +183,7 @@ class LottoEngine:
         except Exception:
             return np.ones(len(probabilities), dtype=np.float64) / max(1, len(probabilities))
 
-    def _detect_runtime_dependencies(self) -> Dict[str, bool]:
+    def _detect_runtime_dependencies(self) -> dict[str, bool]:
         return {
             "sklearn": importlib.util.find_spec("sklearn") is not None,
             "tensorflow": importlib.util.find_spec("tensorflow") is not None,
@@ -425,7 +424,7 @@ class LottoEngine:
             max_consecutive_run=None,
         )
 
-    def _normalize_numbers(self, numbers: Any) -> List[int]:
+    def _normalize_numbers(self, numbers: Any) -> list[int]:
         if not isinstance(numbers, (list, tuple, set)):
             return []
 
@@ -449,10 +448,10 @@ class LottoEngine:
             return True
         return bool(self.runtime_dependencies.get(dependency_name, False))
 
-    def _get_persona_profile(self, strategy_key: str) -> Dict[str, float]:
+    def _get_persona_profile(self, strategy_key: str) -> dict[str, float]:
         return dict(self.STRATEGY_PROFILES.get(strategy_key, self.STRATEGY_PROFILES["hybrid"]))
 
-    def _iter_class_algorithms_for_strategy(self, strategy_key: str) -> List[Any]:
+    def _iter_class_algorithms_for_strategy(self, strategy_key: str) -> list[Any]:
         categories = self.STRATEGY_CLASS_CATEGORIES.get(strategy_key, set())
         if not self.class_algorithm_registry:
             return []
@@ -468,7 +467,7 @@ class LottoEngine:
         cap = 80 if strategy_key == "hybrid" else 40
         return selected[:cap]
 
-    def _sample_frequency_subset(self, candidate_pool: List[int], needed_count: int, ml_vector: np.ndarray) -> List[int]:
+    def _sample_frequency_subset(self, candidate_pool: list[int], needed_count: int, ml_vector: np.ndarray) -> list[int]:
         if needed_count <= 0:
             return []
         if len(candidate_pool) < needed_count:
@@ -493,9 +492,9 @@ class LottoEngine:
     def _sample_markov_subset(
         self,
         needed_count: int,
-        fixed: List[int],
+        fixed: list[int],
         combined_exclusions: set,
-    ) -> List[int]:
+    ) -> list[int]:
         if needed_count <= 0:
             return []
 
@@ -505,12 +504,12 @@ class LottoEngine:
 
     def _merge_with_constraints(
         self,
-        source_numbers: List[int],
-        fixed: List[int],
+        source_numbers: list[int],
+        fixed: list[int],
         combined_exclusions: set,
-        candidate_pool: List[int],
-    ) -> List[int]:
-        merged = list(sorted(set(int(n) for n in fixed if 1 <= int(n) <= 45 and int(n) not in combined_exclusions)))
+        candidate_pool: list[int],
+    ) -> list[int]:
+        merged = list(sorted({int(n) for n in fixed if 1 <= int(n) <= 45 and int(n) not in combined_exclusions}))
         for n in source_numbers:
             iv = int(n)
             if 1 <= iv <= 45 and iv not in combined_exclusions and iv not in merged:
@@ -529,14 +528,14 @@ class LottoEngine:
 
         return sorted(merged)
 
-    def _build_strategy_candidate_bank(self, strategy_key: str, target_size: int = 120) -> List[Dict[str, Any]]:
+    def _build_strategy_candidate_bank(self, strategy_key: str, target_size: int = 120) -> list[dict[str, Any]]:
         context_signature = getattr(self._algorithm_context, "signature", "none") if self._algorithm_context is not None else "none"
         cache_key = (strategy_key, target_size, hash(context_signature))
         if cache_key in self._strategy_candidate_cache:
             return list(self._strategy_candidate_cache[cache_key])
 
         seen = set()
-        bank: List[Dict[str, Any]] = []
+        bank: list[dict[str, Any]] = []
 
         function_ids = self.STRATEGY_FUNCTION_IDS.get(strategy_key, [])
         skipped_dependency_functions = []
@@ -645,12 +644,12 @@ class LottoEngine:
     def _pick_from_strategy_bank(
         self,
         persona: str,
-        persona_banks: Dict[str, List[Dict[str, Any]]],
-        persona_offsets: Dict[str, int],
-        fixed: List[int],
+        persona_banks: dict[str, list[dict[str, Any]]],
+        persona_offsets: dict[str, int],
+        fixed: list[int],
         combined_exclusions: set,
-        candidate_pool: List[int],
-    ) -> Tuple[List[int], str]:
+        candidate_pool: list[int],
+    ) -> tuple[list[int], str]:
         bank = persona_banks.get(persona) or []
         if not bank:
             return [], ""
@@ -669,10 +668,10 @@ class LottoEngine:
     def generate_prediction_sets(
         self,
         set_count: int = 5,
-        fixed_numbers: List[int] = None,
-        excluded_numbers: List[int] = None,
+        fixed_numbers: list[int] = None,
+        excluded_numbers: list[int] = None,
         selected_algorithm_id: str = "ensemble_auto",
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """
         Generates thread-safe ensemble-backed prediction sets with explicit strategy dispatch.
         """
@@ -683,7 +682,7 @@ class LottoEngine:
 
             results = []
             fixed = sorted([int(n) for n in (fixed_numbers or []) if 1 <= int(n) <= 45])
-            user_exc = set(int(n) for n in (excluded_numbers or []))
+            user_exc = {int(n) for n in (excluded_numbers or [])}
             combined_exclusions = self.exclusion_pool.union(user_exc).difference(set(fixed))
 
             candidate_pool = [n for n in range(1, 46) if n not in combined_exclusions and n not in fixed]
@@ -698,8 +697,8 @@ class LottoEngine:
             weights = [max(0.01, persona_profile[p] * self.persona_weights.get(p, 1.0)) for p in personas]
 
             bank_target = max(24, int(set_count) * 8)
-            persona_banks: Dict[str, List[Dict[str, Any]]] = {}
-            persona_offsets: Dict[str, int] = {}
+            persona_banks: dict[str, list[dict[str, Any]]] = {}
+            persona_offsets: dict[str, int] = {}
             for persona in personas:
                 if persona in {"statistics", "pattern", "hybrid", "ml_ai", "ai_neural", "advanced", "random"}:
                     persona_banks[persona] = self._build_strategy_candidate_bank(persona, target_size=bank_target)
@@ -808,7 +807,7 @@ class LottoEngine:
 
             return results
 
-    def build_audit_snapshot(self) -> Dict[str, Any]:
+    def build_audit_snapshot(self) -> dict[str, Any]:
         """Builds comprehensive model performance audit statistics including dynamic ensemble metrics."""
         with self._lock:
             best_persona = max(self.persona_weights, key=self.persona_weights.get) if self.persona_weights else "markov"

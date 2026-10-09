@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/header_widget.py
 import logging
 import os

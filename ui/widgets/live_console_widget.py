@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/live_console_widget.py
 import sys
 import os

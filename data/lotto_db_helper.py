@@ -209,14 +209,14 @@ class LottoDBHelper:
             latest = max(draws, key=lambda x: x.get("draw_no", 0))
             winning_nums = [latest.get(f"num{i}") for i in range(1, 7)]
             bonus_no = latest.get("bonus", 0)
-            return set(n for n in winning_nums if n), int(bonus_no) if bonus_no else 0
+            return {n for n in winning_nums if n}, int(bonus_no) if bonus_no else 0
         
         history = cls.get_all_history_records()
         if history:
             latest = max(history, key=lambda x: x.get("draw_no", 0))
             winning_nums = latest.get("numbers", [])
             bonus_no = latest.get("bonus", 0)
-            return set(n for n in winning_nums if n), int(bonus_no) if bonus_no else 0
+            return {n for n in winning_nums if n}, int(bonus_no) if bonus_no else 0
 
         return set(), 0
 

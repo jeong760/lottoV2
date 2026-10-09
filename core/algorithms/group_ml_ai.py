@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/algorithms/group_ml_ai.py
 import sys
 import os
@@ -71,7 +70,7 @@ except ImportError:
     _log.warning("CatBoost is not available. CatBoost algorithm will run in fallback mode.")
 
 
-def _extract_draw_numbers(draw: dict) -> List[int]:
+def _extract_draw_numbers(draw: dict) -> list[int]:
     """Helper utility to extract and validate 6 numbers from a historical draw record safely."""
     nums = []
     for k in ["num1", "num2", "num3", "num4", "num5", "num6", "drwtNo1", "drwtNo2", "drwtNo3", "drwtNo4", "drwtNo5", "drwtNo6"]:
@@ -86,7 +85,7 @@ def _extract_draw_numbers(draw: dict) -> List[int]:
     return sorted(list(set(nums)))[:6]
 
 
-def _build_number_supervised_dataset(history_sets: List[List[int]], lookback: int = 15):
+def _build_number_supervised_dataset(history_sets: list[list[int]], lookback: int = 15):
     """Builds per-number supervised training data from historical draw windows."""
     try:
         if len(history_sets) <= lookback:
@@ -124,7 +123,7 @@ def _build_number_supervised_dataset(history_sets: List[List[int]], lookback: in
         return None, None
 
 
-def _build_latest_number_features(history_sets: List[List[int]], lookback: int = 15) -> np.ndarray:
+def _build_latest_number_features(history_sets: list[list[int]], lookback: int = 15) -> np.ndarray:
     """Builds per-number feature vectors for inference from the latest window."""
     window = history_sets[-lookback:] if len(history_sets) >= lookback else history_sets
     recent_5 = window[-5:] if len(window) >= 5 else window
@@ -185,7 +184,7 @@ def _sanitize_binary_training_data(X_arr: np.ndarray, y_arr: np.ndarray):
 # ==========================================
 
 @register_algorithm("ml_001", "[ML] Random Forest Multi-Output Classification Analysis")
-def generate_by_random_forest_ensemble() -> List[int]:
+def generate_by_random_forest_ensemble() -> list[int]:
     """Trains a genuine scikit-learn RandomForestClassifier on historical draw sequence patterns."""
     try:
         all_draws = LottoRepository.get_all_draws()
@@ -238,7 +237,7 @@ def generate_by_random_forest_ensemble() -> List[int]:
 
 
 @register_algorithm("ml_002", "[ML] K-Means Clustering on Number Feature Vectors")
-def generate_by_kmeans_clustering() -> List[int]:
+def generate_by_kmeans_clustering() -> list[int]:
     """Applies scikit-learn KMeans clustering on multi-dimensional feature vectors of all 45 lotto numbers."""
     try:
         all_draws = LottoRepository.get_all_draws()
@@ -298,7 +297,7 @@ def generate_by_kmeans_clustering() -> List[int]:
 
 
 @register_algorithm("ml_003", "[ML] Naive Bayes Conditional Probability Classifier")
-def generate_by_naive_bayes() -> List[int]:
+def generate_by_naive_bayes() -> list[int]:
     """Uses scikit-learn GaussianNB to classify and score numbers based on historical features."""
     try:
         all_draws = LottoRepository.get_all_draws()
@@ -357,7 +356,7 @@ def generate_by_naive_bayes() -> List[int]:
 
 
 @register_algorithm("ml_004", "[ML] Hidden Markov Model State Transition Prediction (DB Cached)")
-def generate_by_hidden_markov_model() -> List[int]:
+def generate_by_hidden_markov_model() -> list[int]:
     """Computes empirical Markov chain transition probability matrix with Laplace smoothing and DB caching."""
     try:
         all_draws = LottoRepository.get_all_draws()
@@ -435,7 +434,7 @@ def generate_by_hidden_markov_model() -> List[int]:
 
 
 @register_algorithm("ml_ts_001", "[Time-Series ML] Gradient Boosting Regressor Trend Forecasting")
-def generate_by_timeseries_momentum() -> List[int]:
+def generate_by_timeseries_momentum() -> list[int]:
     """Trains a scikit-learn GradientBoostingRegressor to forecast number selection probabilities based on time-series rolling momentum."""
     try:
         all_draws = LottoRepository.get_all_draws()
@@ -496,7 +495,7 @@ def generate_by_timeseries_momentum() -> List[int]:
 
 
 @register_algorithm("ml_005", "[ML] LightGBM Gradient Leaf-Wise Probability Ranking")
-def generate_by_lightgbm_ranker() -> List[int]:
+def generate_by_lightgbm_ranker() -> list[int]:
     """
     Trains a genuine LightGBM classifier on rolling historical number-level features
     and ranks the next-draw number probabilities using leaf-wise gradient boosting.
@@ -570,7 +569,7 @@ def generate_by_lightgbm_ranker() -> List[int]:
 
 
 @register_algorithm("ml_006", "[ML] CatBoost Ordered Boosting Classifier")
-def generate_by_catboost_classifier() -> List[int]:
+def generate_by_catboost_classifier() -> list[int]:
     """
     Trains a genuine CatBoost classifier on ordered historical draw features and
     samples numbers from the resulting probability distribution.
@@ -624,7 +623,7 @@ def generate_by_catboost_classifier() -> List[int]:
 # ==========================================
 
 @register_algorithm("ALG-AI-01", "Machine Learning Weight-Based Smart Pattern Extraction")
-def ai_smart_algorithm(db_data=None) -> List[int]:
+def ai_smart_algorithm(db_data=None) -> list[int]:
     """Extracts numbers by reflecting knowledge if an AI brain (weight file) exists."""
     weight_file = os.path.join(project_root, "ai", "model_weights.pkl")
     if os.path.exists(weight_file):
@@ -649,7 +648,7 @@ def ai_smart_algorithm(db_data=None) -> List[int]:
 
 
 @register_algorithm("dl_001", "[Deep Learning] MLP Neural Network Sequence Scoring")
-def generate_by_lstm_sequence_memory() -> List[int]:
+def generate_by_lstm_sequence_memory() -> list[int]:
     """Trains a scikit-learn MLPRegressor (Multi-Layer Perceptron Neural Network) to score numbers based on sequence history."""
     try:
         all_draws = LottoRepository.get_all_draws()
@@ -706,7 +705,7 @@ def generate_by_lstm_sequence_memory() -> List[int]:
 
 
 @register_algorithm("dl_002", "[Deep Learning] Attention-Based Similarity Scoring")
-def generate_by_transformer_self_attention() -> List[int]:
+def generate_by_transformer_self_attention() -> list[int]:
     """Computes self-attention-like dot product similarity scores across recent historical draw embedding vectors."""
     try:
         all_draws = LottoRepository.get_all_draws()
@@ -750,7 +749,7 @@ def generate_by_transformer_self_attention() -> List[int]:
 
 
 @register_algorithm("dl_003", "[Deep Learning] Reinforcement Learning Q-Learning Reward Optimization")
-def generate_by_reinforcement_q_learning() -> List[int]:
+def generate_by_reinforcement_q_learning() -> list[int]:
     """Executes true Q-learning updates based on reward-penalty feedback from recent draws."""
     try:
         all_draws = LottoRepository.get_all_draws()

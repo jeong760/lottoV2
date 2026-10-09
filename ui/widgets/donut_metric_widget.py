@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/donut_metric_widget.py
 import sys
 import os

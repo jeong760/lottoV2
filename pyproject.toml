@@ -7,7 +7,7 @@ name = "lottomater"
 version = "1.0.0"
 description = "PyQt5 Lotto 6/45 Analysis and Prediction Engine"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.14"
 dependencies = [
     "PyQt5>=5.15.0",
     "numpy>=1.20.0",

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/statistics_controller.py
 import sys
 import os

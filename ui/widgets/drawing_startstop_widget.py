@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/drawing_startstop_widget.py
 import sys
 import os

@@ -166,7 +166,7 @@ Since the filters are operating correctly, you can enjoy the simulation with com
 
 ### Prerequisites
 
-* Python 3.8+ (Python 3.10+ recommended)
+* Python 3.14+
 * PyQt5, Pandas, OpenPyXL, Psutil
 
 ### Installation & Execution
@@ -412,7 +412,7 @@ lottoV2/
 
 ## 💻 Tech Stack
 
-* **Language**: Python 3.8+ (Python 3.10+ recommended)
+* **Language**: Python 3.14+
 * **GUI Framework**: PyQt5
 * **System Monitoring**: Psutil
 * **Data Processing & Export**: Pandas, OpenPyXL
