@@ -47,6 +47,28 @@ class LottoDBHelper:
         kst = timezone(timedelta(hours=9))
         return datetime.now(kst).strftime("%Y-%m-%d %H:%M:%S")
 
+    @staticmethod
+    def _safe_json_dumps(payload, ensure_ascii: bool = False, default=str, fallback: str = "{}") -> str:
+        """
+        Safely serializes payload to JSON while handling runtime encoder edge cases.
+        """
+        try:
+            return json.dumps(payload, ensure_ascii=ensure_ascii, default=default)
+        except Exception as primary_ex:
+            try:
+                # Python runtime edge-case fallback: force integer indent.
+                return json.dumps(payload, ensure_ascii=ensure_ascii, default=default, indent=0)
+            except Exception as secondary_ex:
+                _log.warning(
+                    "JSON serialization fallback triggered. primary=%s secondary=%s",
+                    primary_ex,
+                    secondary_ex,
+                )
+                try:
+                    return json.dumps(str(payload), ensure_ascii=ensure_ascii)
+                except Exception:
+                    return fallback
+
     @classmethod
     def _backfill_generation_batch_ids_from_metadata(cls, cursor):
         """Backfills empty generation_batch_id column values from metadata_json for legacy rows."""
@@ -315,7 +337,12 @@ class LottoDBHelper:
         safe_meta["round_info"] = str(round_info)
         if generation_batch_id:
             safe_meta["generation_batch_id"] = generation_batch_id
-        metadata_json = json.dumps(safe_meta, ensure_ascii=False, default=str)
+        metadata_json = cls._safe_json_dumps(
+            safe_meta,
+            ensure_ascii=False,
+            default=str,
+            fallback="{}",
+        )
         
         now_str = cls._get_kst_now()
 
@@ -340,7 +367,11 @@ class LottoDBHelper:
                     base_nums = sorted([int(n) for n in nums[:6]])
                     bonus_val = int(nums[6]) if len(nums) >= 7 else 0
                     full_list_for_json = base_nums + ([bonus_val] if bonus_val else [])
-                    numbers_json = json.dumps(full_list_for_json)
+                    numbers_json = cls._safe_json_dumps(
+                        full_list_for_json,
+                        ensure_ascii=False,
+                        fallback="[]",
+                    )
 
                     current_set_no = idx + 1
                     rounds_desc, evaluated_match_count = cls.evaluate_against_history(base_nums, bonus_val, target_draw_no)
