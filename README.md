@@ -203,7 +203,7 @@ The execution sequence outlines the entire lifecycle of LottoMaster Pro, startin
   │     └── Verify and create local log directories and log files
   │
   ├── 2. Dependency & Module Validation
-  │     ├── Check availability of core libraries (PyQt5, psutil, pandas, tensorflow, etc.)
+  │     ├── Check availability of core libraries (PyQt5, psutil, pandas, torch, etc.)
   │     └── Catch and log critical exceptions if essential packages are missing
   │
   ├── 3. QApplication Initialization

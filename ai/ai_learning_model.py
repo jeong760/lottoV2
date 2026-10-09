@@ -21,14 +21,14 @@ if project_root not in sys.path:
 _log = logging.getLogger("AILearningModel")
 
 try:
-    import tensorflow as tf
-    from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import Input, LSTM, GRU, Dense, Dropout
-    from tensorflow.keras.callbacks import Callback
-    TF_AVAILABLE = True
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import DataLoader, TensorDataset
+    TORCH_AVAILABLE = True
 except ImportError:
-    TF_AVAILABLE = False
-    _log.warning("TensorFlow is not available. Deep learning LSTM/GRU features will run in fallback statistical mode.")
+    TORCH_AVAILABLE = False
+    _log.warning("PyTorch is not available. Deep learning LSTM/GRU features will run in fallback statistical mode.")
 
 try:
     from statsmodels.tsa.arima.model import ARIMA
@@ -45,8 +45,8 @@ except ImportError:
     _log.warning("xgboost is not available. Tree-based weighting model will run in fallback statistical mode.")
 
 
-class TrainingProgressCallback(Callback if TF_AVAILABLE else object):
-    """Keras Callback to stream real-time epoch, loss, and metrics to external listeners safely."""
+class TrainingProgressCallback(object):
+    """Training callback to stream real-time epoch, loss, and metrics to external listeners safely."""
     def __init__(self, progress_callback: Callable | None = None, total_epochs: int = 20):
         super().__init__()
         self.progress_callback = progress_callback
@@ -62,6 +62,45 @@ class TrainingProgressCallback(Callback if TF_AVAILABLE else object):
                     self.progress_callback(current_epoch, self.total_epochs, loss, mae)
             except Exception as e:
                 _log.error(f"Error in training progress callback: {e}", exc_info=True)
+
+
+if TORCH_AVAILABLE:
+    class _TorchLSTMRegressor(nn.Module):
+        def __init__(self, input_size: int):
+            super().__init__()
+            self.lstm1 = nn.LSTM(input_size=input_size, hidden_size=64, batch_first=True)
+            self.dropout1 = nn.Dropout(0.2)
+            self.lstm2 = nn.LSTM(input_size=64, hidden_size=32, batch_first=True)
+            self.dropout2 = nn.Dropout(0.2)
+            self.fc1 = nn.Linear(32, 16)
+            self.fc2 = nn.Linear(16, 6)
+
+        def forward(self, x):
+            x, _ = self.lstm1(x)
+            x = self.dropout1(x)
+            x, _ = self.lstm2(x)
+            x = self.dropout2(x[:, -1, :])
+            x = torch.relu(self.fc1(x))
+            return self.fc2(x)
+
+
+    class _TorchGRURegressor(nn.Module):
+        def __init__(self, input_size: int):
+            super().__init__()
+            self.gru1 = nn.GRU(input_size=input_size, hidden_size=64, batch_first=True)
+            self.dropout1 = nn.Dropout(0.2)
+            self.gru2 = nn.GRU(input_size=64, hidden_size=32, batch_first=True)
+            self.dropout2 = nn.Dropout(0.2)
+            self.fc1 = nn.Linear(32, 16)
+            self.fc2 = nn.Linear(16, 6)
+
+        def forward(self, x):
+            x, _ = self.gru1(x)
+            x = self.dropout1(x)
+            x, _ = self.gru2(x)
+            x = self.dropout2(x[:, -1, :])
+            x = torch.relu(self.fc1(x))
+            return self.fc2(x)
 
 
 class LottoAILearningModel:
@@ -135,42 +174,93 @@ class LottoAILearningModel:
             return None, None
 
     def build_lstm_model(self, input_shape: tuple[int, int]) -> Any | None:
-        if not TF_AVAILABLE:
+        if not TORCH_AVAILABLE:
             return None
         try:
-            model = Sequential([
-                Input(shape=input_shape),
-                LSTM(64, return_sequences=True),
-                Dropout(0.2),
-                LSTM(32, return_sequences=False),
-                Dropout(0.2),
-                Dense(16, activation='relu'),
-                Dense(6, activation='linear')
-            ])
-            model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-            return model
+            _, feature_size = input_shape
+            return _TorchLSTMRegressor(input_size=int(feature_size))
         except Exception as e:
             _log.error(f"Failed to build LSTM model: {e}", exc_info=True)
             return None
 
     def build_gru_model(self, input_shape: tuple[int, int]) -> Any | None:
-        if not TF_AVAILABLE:
+        if not TORCH_AVAILABLE:
             return None
         try:
-            model = Sequential([
-                Input(shape=input_shape),
-                GRU(64, return_sequences=True),
-                Dropout(0.2),
-                GRU(32, return_sequences=False),
-                Dropout(0.2),
-                Dense(16, activation='relu'),
-                Dense(6, activation='linear')
-            ])
-            model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-            return model
+            _, feature_size = input_shape
+            return _TorchGRURegressor(input_size=int(feature_size))
         except Exception as e:
             _log.error(f"Failed to build GRU model: {e}", exc_info=True)
             return None
+
+    def _train_torch_sequence_model(
+        self,
+        model: Any,
+        X: np.ndarray,
+        y: np.ndarray,
+        epochs: int,
+        batch_size: int,
+        callback: TrainingProgressCallback | None = None,
+    ) -> bool:
+        if not TORCH_AVAILABLE or model is None:
+            return False
+
+        try:
+            x_arr = np.asarray(X, dtype=np.float32)
+            y_arr = np.asarray(y, dtype=np.float32)
+            if x_arr.size == 0 or y_arr.size == 0:
+                return False
+
+            dataset = TensorDataset(
+                torch.tensor(x_arr, dtype=torch.float32),
+                torch.tensor(y_arr, dtype=torch.float32),
+            )
+            effective_batch = max(1, min(int(batch_size or 16), len(dataset)))
+            dataloader = DataLoader(dataset, batch_size=effective_batch, shuffle=True, drop_last=False)
+
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model = model.to(device)
+            model.train()
+
+            criterion = nn.MSELoss()
+            optimizer = optim.Adam(model.parameters(), lr=1e-3)
+            total_epochs = max(1, int(epochs or 1))
+
+            for epoch in range(total_epochs):
+                total_loss = 0.0
+                total_mae = 0.0
+                seen = 0
+
+                for x_batch, y_batch in dataloader:
+                    x_batch = x_batch.to(device)
+                    y_batch = y_batch.to(device)
+
+                    optimizer.zero_grad(set_to_none=True)
+                    preds = model(x_batch)
+                    loss = criterion(preds, y_batch)
+                    mae = torch.mean(torch.abs(preds - y_batch))
+                    loss.backward()
+                    optimizer.step()
+
+                    batch_n = int(x_batch.size(0))
+                    total_loss += float(loss.detach().cpu().item()) * batch_n
+                    total_mae += float(mae.detach().cpu().item()) * batch_n
+                    seen += batch_n
+
+                if callback is not None:
+                    callback.on_epoch_end(
+                        epoch,
+                        {
+                            "loss": total_loss / max(1, seen),
+                            "mae": total_mae / max(1, seen),
+                        },
+                    )
+
+            model.eval()
+            return True
+        except Exception as e:
+            _log.warning(f"PyTorch sequence model training failed: {e}", exc_info=True)
+            return False
 
     def train_xgboost_model(self, history_records: list[Any]) -> dict[int, float]:
         default_weights = {i: 1.0 for i in range(1, 46)}
@@ -422,7 +512,7 @@ class LottoAILearningModel:
                 self.xgb_weights = {i: 1.0 for i in range(1, 46)}
                 self.bias_analysis = {"current_gaps": {}, "balanced_weights": {i: 1.0 for i in range(1, 46)}}
 
-            if not TF_AVAILABLE:
+            if not TORCH_AVAILABLE:
                 self.is_trained = True
                 return {"status": "Fallback Statistical & ML Mode Active", "trained": False}
 
@@ -433,23 +523,26 @@ class LottoAILearningModel:
 
             input_shape = (X.shape[1], X.shape[2])
             cb = TrainingProgressCallback(progress_callback=progress_callback, total_epochs=epochs)
+            trained_models = []
 
             self.lstm_model = self.build_lstm_model(input_shape)
             if self.lstm_model:
                 try:
-                    self.lstm_model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0, callbacks=[cb])
+                    if self._train_torch_sequence_model(self.lstm_model, X, y, epochs=epochs, batch_size=batch_size, callback=cb):
+                        trained_models.append("LSTM")
                 except Exception as ex:
                     _log.warning(f"LSTM fitting warning: {ex}", exc_info=True)
 
             self.gru_model = self.build_gru_model(input_shape)
             if self.gru_model:
                 try:
-                    self.gru_model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0, callbacks=[cb])
+                    if self._train_torch_sequence_model(self.gru_model, X, y, epochs=epochs, batch_size=batch_size, callback=cb):
+                        trained_models.append("GRU")
                 except Exception as ex:
                     _log.warning(f"GRU fitting warning: {ex}", exc_info=True)
 
             self.is_trained = True
-            return {"status": "Success", "epochs": epochs, "trained": True, "models": ["LSTM", "GRU", "ARIMA", "XGBoost"]}
+            return {"status": "Success", "epochs": epochs, "trained": True, "models": trained_models + ["ARIMA", "XGBoost"]}
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] train_model error: {e}\n{traceback.format_exc()}")
             self.is_trained = True
