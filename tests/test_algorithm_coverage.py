@@ -107,6 +107,36 @@ def test_required_function_algorithms_are_registered_and_callable(monkeypatch):
         _validate_six_numbers(numbers)
 
 
+def test_lightgbm_ranker_access_violation_fallback_and_disable(monkeypatch):
+    history_records = _build_history_records(120)
+    monkeypatch.setattr(group_ml_ai.LottoRepository, "get_all_draws", lambda: history_records)
+    monkeypatch.setattr(group_ml_ai, "LIGHTGBM_AVAILABLE", True)
+    monkeypatch.setattr(group_ml_ai, "LIGHTGBM_RUNTIME_DISABLED", False)
+
+    fallback_numbers = [1, 7, 14, 21, 28, 35]
+    monkeypatch.setattr(group_ml_ai, "generate_by_timeseries_momentum", lambda: fallback_numbers)
+
+    fit_call_count = {"count": 0}
+
+    class BrokenLGBM:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def fit(self, X, y):
+            fit_call_count["count"] += 1
+            raise OSError("exception: access violation reading 0x0000000000000000")
+
+    monkeypatch.setattr(group_ml_ai, "LGBMClassifier", BrokenLGBM, raising=False)
+
+    first = group_ml_ai.generate_by_lightgbm_ranker()
+    second = group_ml_ai.generate_by_lightgbm_ranker()
+
+    assert first == fallback_numbers
+    assert second == fallback_numbers
+    assert fit_call_count["count"] == 1
+    assert group_ml_ai.LIGHTGBM_RUNTIME_DISABLED is True
+
+
 def test_class_variant_algorithms_generate_valid_sets():
     history_sets = _build_history_sets(140)
     context = HistoricalContext.build(history_sets)

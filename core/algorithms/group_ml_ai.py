@@ -61,6 +61,8 @@ except ImportError:
     LIGHTGBM_AVAILABLE = False
     _log.warning("LightGBM is not available. LightGBM algorithm will run in fallback mode.")
 
+LIGHTGBM_RUNTIME_DISABLED = False
+
 try:
     from catboost import CatBoostClassifier
     CATBOOST_AVAILABLE = True
@@ -144,6 +146,38 @@ def _build_latest_number_features(history_sets: List[List[int]], lookback: int =
 
         features.append([float(freq_5), float(freq_15), momentum, float(gap), 1.0 if num in prev_draw else 0.0])
     return np.array(features, dtype=np.float64)
+
+
+def _sanitize_binary_training_data(X_arr: np.ndarray, y_arr: np.ndarray):
+    """Sanitize training arrays for native booster bindings."""
+    try:
+        X_np = np.asarray(X_arr, dtype=np.float32)
+        y_np = np.asarray(y_arr, dtype=np.int32).reshape(-1)
+
+        if X_np.ndim != 2 or y_np.ndim != 1:
+            return None, None
+        if X_np.shape[0] == 0 or X_np.shape[0] != y_np.shape[0]:
+            return None, None
+
+        finite_mask = np.isfinite(X_np).all(axis=1)
+        if not np.any(finite_mask):
+            return None, None
+
+        X_np = X_np[finite_mask]
+        y_np = y_np[finite_mask]
+        if X_np.shape[0] == 0:
+            return None, None
+
+        y_np = (y_np > 0).astype(np.int32, copy=False)
+        if len(np.unique(y_np)) < 2:
+            return None, None
+
+        return (
+            np.ascontiguousarray(X_np, dtype=np.float32),
+            np.ascontiguousarray(y_np, dtype=np.int32),
+        )
+    except Exception:
+        return None, None
 
 
 # ==========================================
@@ -468,7 +502,10 @@ def generate_by_lightgbm_ranker() -> List[int]:
     and ranks the next-draw number probabilities using leaf-wise gradient boosting.
     """
     try:
+        global LIGHTGBM_RUNTIME_DISABLED
         all_draws = LottoRepository.get_all_draws()
+        if LIGHTGBM_RUNTIME_DISABLED:
+            return generate_by_timeseries_momentum()
         if not LIGHTGBM_AVAILABLE or not all_draws or len(all_draws) < 35:
             return sorted(random.sample(range(1, 46), 6))
 
@@ -480,6 +517,10 @@ def generate_by_lightgbm_ranker() -> List[int]:
         if X_arr is None or y_arr is None or len(np.unique(y_arr)) < 2:
             return sorted(random.sample(range(1, 46), 6))
 
+        X_arr, y_arr = _sanitize_binary_training_data(X_arr, y_arr)
+        if X_arr is None or y_arr is None:
+            return sorted(random.sample(range(1, 46), 6))
+
         lgbm = LGBMClassifier(
             n_estimators=120,
             learning_rate=0.05,
@@ -487,9 +528,26 @@ def generate_by_lightgbm_ranker() -> List[int]:
             subsample=0.9,
             colsample_bytree=0.9,
             random_state=42,
+            objective="binary",
+            n_jobs=1,
+            force_col_wise=True,
             verbose=-1
         )
-        lgbm.fit(X_arr, y_arr)
+        try:
+            lgbm.fit(X_arr, y_arr)
+        except OSError as fit_error:
+            err_msg = str(fit_error).lower()
+            if "access violation" in err_msg:
+                LIGHTGBM_RUNTIME_DISABLED = True
+                _log.warning(
+                    "LightGBM native fit crashed with access violation; disabling LightGBM for this session and using time-series fallback."
+                )
+            else:
+                _log.warning(
+                    "LightGBM fit failed with native OSError; using time-series fallback. detail=%s",
+                    fit_error,
+                )
+            return generate_by_timeseries_momentum()
 
         latest_features = _build_latest_number_features(history_sets, lookback=15)
         probas = lgbm.predict_proba(latest_features)

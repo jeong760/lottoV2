@@ -11,7 +11,7 @@ from typing import Optional, Dict, Any, List
 
 # Ensure project root is in sys.path and initialize centralized logging
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir))) if "repositories" in current_dir else current_dir
+project_root = os.path.dirname(os.path.dirname(current_dir)) if "repositories" in current_dir else current_dir
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -37,14 +37,14 @@ class MLModelRepository:
     def _get_db_path() -> str:
         try:
             current_script_dir = os.path.dirname(os.path.abspath(__file__))
-            proj_root = os.path.dirname(os.path.dirname(os.path.dirname(current_script_dir)))
+            proj_root = os.path.dirname(os.path.dirname(current_script_dir))
             db_dir = os.path.join(proj_root, "db")
             if not os.path.exists(db_dir):
                 os.makedirs(db_dir, exist_ok=True)
             return os.path.join(db_dir, "mllearn.db")
         except Exception as e:
             _log.warning(f"Error resolving mllearn.db path: {e}")
-            fallback_dir = os.path.join(os.getcwd(), "db")
+            fallback_dir = os.path.join(project_root, "db")
             os.makedirs(fallback_dir, exist_ok=True)
             return os.path.join(fallback_dir, "mllearn.db")
 
