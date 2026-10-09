@@ -43,6 +43,21 @@ class _RestrictedUnpickler(pickle.Unpickler):
 def _safe_pickle_load(file_obj):
     return _RestrictedUnpickler(file_obj).load()
 
+
+def _to_numeric_weight_map(raw_map: Any) -> dict[int, float]:
+    parsed = {}
+    if not isinstance(raw_map, dict):
+        return parsed
+
+    for k, v in raw_map.items():
+        try:
+            num = int(k)
+            if 1 <= num <= 45:
+                parsed[num] = float(v)
+        except (TypeError, ValueError):
+            continue
+    return parsed
+
 try:
     from sklearn.ensemble import RandomForestClassifier, GradientBoostingRegressor
     from sklearn.cluster import KMeans
@@ -624,7 +639,37 @@ def generate_by_catboost_classifier() -> list[int]:
 
 @register_algorithm("ALG-AI-01", "Machine Learning Weight-Based Smart Pattern Extraction")
 def ai_smart_algorithm(db_data=None) -> list[int]:
-    """Extracts numbers by reflecting knowledge if an AI brain (weight file) exists."""
+    """Extracts numbers from persisted AI model state with weighted fallback logic."""
+    try:
+        state = None
+        for key in ("latest_weights_1_500", "latest_weights"):
+            state = MLModelRepository.load_model_state(key)
+            if isinstance(state, dict) and state:
+                break
+
+        if isinstance(state, dict) and state:
+            neural_weights = _to_numeric_weight_map(state.get("neural_weights", {}))
+            frequency_weights = _to_numeric_weight_map(state.get("frequency_distribution", {}))
+            bias_analysis = state.get("bias_analysis", {}) if isinstance(state.get("bias_analysis"), dict) else {}
+            balanced_weights = _to_numeric_weight_map(bias_analysis.get("balanced_weights", {}))
+
+            if neural_weights or frequency_weights or balanced_weights:
+                candidate_pool = list(range(1, 46))
+                combined = []
+                for num in candidate_pool:
+                    nw = float(neural_weights.get(num, 1.0))
+                    bw = float(balanced_weights.get(num, 1.0))
+                    fw = float(frequency_weights.get(num, 1.0))
+                    score = (nw * 0.5) + (bw * 0.3) + (fw * 0.2)
+                    combined.append(max(0.01, score))
+
+                probs = np.array(combined, dtype=np.float64)
+                probs /= np.sum(probs) if np.sum(probs) > 0 else 1.0
+                selected = np.random.choice(candidate_pool, size=6, replace=False, p=probs)
+                return sorted([int(n) for n in selected])
+    except Exception as e:
+        _log.warning(f"Failed to load repository AI model state for ALG-AI-01: {e}")
+
     weight_file = os.path.join(project_root, "ai", "model_weights.pkl")
     if os.path.exists(weight_file):
         try:
@@ -632,10 +677,11 @@ def ai_smart_algorithm(db_data=None) -> list[int]:
                 weights = _safe_pickle_load(f)
             if not isinstance(weights, dict):
                 return sorted(random.sample(range(1, 46), 6))
+
             preferred = weights.get("favorite_bias", [1, 2])
             preferred = [int(n) for n in preferred if 1 <= int(n) <= 45]
             remaining = [n for n in range(1, 46) if n not in preferred]
-            
+
             if len(preferred) < 6:
                 chosen = preferred + random.sample(remaining, 6 - len(preferred))
             else:
@@ -643,7 +689,7 @@ def ai_smart_algorithm(db_data=None) -> list[int]:
             return sorted([int(n) for n in chosen])
         except Exception as e:
             _log.warning(f"Failed to load AI model weights from {weight_file}: {e}")
-            
+
     return sorted(random.sample(range(1, 46), 6))
 
 

@@ -235,8 +235,10 @@ class AITrainWorker(QThread):
             ai_weights_data = {
                 "trained_at": datetime.now().isoformat(),
                 "lstm_trained": model_state.get("lstm_trained", True),
+                "trained_models": model_state.get("trained_models", []),
                 "co_occurrence_matrix": model_state.get("co_occurrence_matrix", {}),
                 "transition_matrix": model_state.get("transition_matrix", {}),
+                "neural_weights": model_state.get("neural_weights", {}),
                 "bias_analysis": model_state.get("bias_analysis", {}),
                 "frequency_distribution": model_state.get("frequency_distribution", {}),
                 "trend_score": model_state.get("trend_score", 0.94),
@@ -263,13 +265,39 @@ class AITrainWorker(QThread):
 
             # --- 안전한 레포지토리 및 DB 저장 (블록 분리 및 예외 격리) ---
             try:
-                MLModelRepository.save_model_state(
-                    key="latest_weights_1_500",
-                    model_type="Unified_AI_Ensemble",
-                    state_dict=ai_weights_data
-                )
+                for state_key in ("latest_weights_1_500", "latest_weights"):
+                    MLModelRepository.save_model_state(
+                        key=state_key,
+                        model_type="Unified_AI_Ensemble",
+                        state_dict=ai_weights_data
+                    )
             except Exception as repo_save_err:
                 _log.warning(f"MLModelRepository save warning (non-fatal): {repo_save_err}", exc_info=True)
+
+            try:
+                legacy_weight_path = os.path.join(project_root, "ai", "model_weights.pkl")
+                combined_scores = {}
+                neural_weights = ai_weights_data.get("neural_weights", {}) or {}
+                balanced_weights = (ai_weights_data.get("bias_analysis", {}) or {}).get("balanced_weights", {}) or {}
+                frequency_weights = ai_weights_data.get("frequency_distribution", {}) or {}
+                for num in range(1, 46):
+                    nw = float(neural_weights.get(str(num), neural_weights.get(num, 1.0)))
+                    bw = float(balanced_weights.get(str(num), balanced_weights.get(num, 1.0)))
+                    fw = float(frequency_weights.get(str(num), frequency_weights.get(num, 1.0)))
+                    combined_scores[num] = (nw * 0.5) + (bw * 0.3) + (fw * 0.2)
+                top_bias = [n for n, _ in sorted(combined_scores.items(), key=lambda item: item[1], reverse=True)[:12]]
+
+                legacy_payload = {
+                    "favorite_bias": top_bias,
+                    "neural_weights": neural_weights,
+                    "bias_analysis": ai_weights_data.get("bias_analysis", {}),
+                    "frequency_distribution": frequency_weights,
+                    "trained_at": ai_weights_data.get("trained_at"),
+                }
+                with open(legacy_weight_path, "wb") as f:
+                    pickle.dump(legacy_payload, f, protocol=pickle.HIGHEST_PROTOCOL)
+            except Exception as legacy_save_ex:
+                _log.warning(f"Failed to update legacy ai/model_weights.pkl (non-fatal): {legacy_save_ex}", exc_info=True)
 
             try:
                 weights_blob = pickle.dumps(ai_weights_data)

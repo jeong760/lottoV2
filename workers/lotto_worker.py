@@ -20,6 +20,7 @@ setup_logging(project_root)
 from PyQt5.QtCore import QThread, pyqtSignal
 from config import SUM_MIN, SUM_MAX
 from data.repositories.lotto_repository import LottoRepository
+from data.repositories.ml_model_repository import MLModelRepository
 from utils.audit_security import AuditTrailSecurity
 from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
 from core.generation_schema import (
@@ -98,6 +99,15 @@ class LottoWorker(QThread):
             pass
 
     def _load_ai_weights(self):
+        try:
+            for state_key in ("latest_weights_1_500", "latest_weights"):
+                state = MLModelRepository.load_model_state(state_key)
+                if isinstance(state, dict) and state:
+                    _log.info("AI model weights successfully loaded into LottoWorker from repository key '%s'.", state_key)
+                    return state
+        except Exception as e:
+            _log.warning(f"Failed to load AI model weights from repository: {e}", exc_info=True)
+
         model_path = os.path.join(project_root, "ai", "model_weights.pkl")
         if os.path.exists(model_path):
             try:
@@ -105,7 +115,7 @@ class LottoWorker(QThread):
                     data = _safe_pickle_load(f)
                     if not isinstance(data, dict):
                         return None
-                    _log.info("AI model weights successfully loaded into LottoWorker.")
+                    _log.info("AI model weights successfully loaded into LottoWorker from legacy file.")
                     return data
             except Exception as e:
                 _log.warning(f"Failed to load AI model weights: {e}", exc_info=True)

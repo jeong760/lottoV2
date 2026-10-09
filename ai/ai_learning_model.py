@@ -121,8 +121,10 @@ class LottoAILearningModel:
         self.transition_matrix = {}
         self.time_series_scores = {}
         self.xgb_weights = {}
+        self.neural_weights = {i: 1.0 for i in range(1, 46)}
         self.bias_analysis = {}
         self.frequency_distribution = {}
+        self.trained_models = []
 
     def prepare_training_data(self, history_records: list[Any]) -> tuple[np.ndarray | None, np.ndarray | None]:
         """Prepares historical drawing records into tensor features for sequence training safely."""
@@ -261,6 +263,110 @@ class LottoAILearningModel:
         except Exception as e:
             _log.warning(f"PyTorch sequence model training failed: {e}", exc_info=True)
             return False
+
+    def _prepare_recent_sequence_window(self, history_records: list[Any], window_size: int = 5) -> np.ndarray | None:
+        try:
+            if not history_records:
+                return None
+
+            sequences = []
+            for record in history_records:
+                nums = []
+                if isinstance(record, dict):
+                    nums = record.get("numbers", []) or record.get("draw", [])
+                    if not nums:
+                        nums = [record.get(f"drwtNo{i}") for i in range(1, 7)]
+                elif isinstance(record, (list, tuple)):
+                    nums = list(record)
+
+                valid_nums = []
+                for n in nums:
+                    try:
+                        iv = int(n)
+                        if 1 <= iv <= 45:
+                            valid_nums.append(iv)
+                    except (ValueError, TypeError):
+                        continue
+
+                if len(valid_nums) >= 6:
+                    normalized = [(n - self.scaler_mean) / self.scaler_std for n in sorted(valid_nums[:6])]
+                    sequences.append(normalized)
+
+            if len(sequences) < int(window_size):
+                return None
+
+            recent_window = np.array([sequences[-int(window_size):]], dtype=np.float32)
+            if recent_window.ndim != 3 or recent_window.shape[1] != int(window_size) or recent_window.shape[2] != 6:
+                return None
+            return recent_window
+        except Exception:
+            return None
+
+    def _predict_normalized_next_numbers(self, model: Any, sequence_window: np.ndarray | None) -> list[float]:
+        if not TORCH_AVAILABLE or model is None or sequence_window is None:
+            return []
+
+        try:
+            device = next(model.parameters()).device
+        except Exception:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        try:
+            model = model.to(device)
+            model.eval()
+            with torch.no_grad():
+                input_tensor = torch.tensor(sequence_window, dtype=torch.float32, device=device)
+                preds = model(input_tensor)
+                pred_array = preds.detach().cpu().numpy().reshape(-1)
+            return [float(v) for v in pred_array[:6]]
+        except Exception as e:
+            _log.debug(f"Neural next-number prediction fallback triggered: {e}")
+            return []
+
+    def _build_neural_weight_map(self, history_records: list[Any]) -> dict[int, float]:
+        default_map = {i: 1.0 for i in range(1, 46)}
+        if not TORCH_AVAILABLE:
+            return default_map
+
+        try:
+            sequence_window = self._prepare_recent_sequence_window(history_records, window_size=5)
+            if sequence_window is None:
+                return default_map
+
+            predicted_centers = []
+            for model in (self.lstm_model, self.gru_model):
+                normalized_preds = self._predict_normalized_next_numbers(model, sequence_window)
+                if len(normalized_preds) != 6:
+                    continue
+                for pred in normalized_preds:
+                    denorm = (float(pred) * float(self.scaler_std)) + float(self.scaler_mean)
+                    clipped = max(1.0, min(45.0, denorm))
+                    predicted_centers.append(clipped)
+
+            if not predicted_centers:
+                return default_map
+
+            sigma = 3.0
+            raw_scores = {}
+            for num in range(1, 46):
+                closeness = 0.0
+                for center in predicted_centers:
+                    closeness += float(np.exp(-((float(num) - center) ** 2) / (2.0 * sigma * sigma)))
+                raw_scores[num] = max(0.01, float(closeness))
+
+            min_score = min(raw_scores.values()) if raw_scores else 0.0
+            max_score = max(raw_scores.values()) if raw_scores else 1.0
+            score_gap = max_score - min_score
+            if score_gap <= 0:
+                return default_map
+
+            return {
+                num: round(0.1 + ((score - min_score) / score_gap) * 0.9, 4)
+                for num, score in raw_scores.items()
+            }
+        except Exception as e:
+            _log.warning(f"Failed to build neural weight map: {e}", exc_info=True)
+            return default_map
 
     def train_xgboost_model(self, history_records: list[Any]) -> dict[int, float]:
         default_weights = {i: 1.0 for i in range(1, 46)}
@@ -510,10 +616,13 @@ class LottoAILearningModel:
                 self.transition_matrix = {}
                 self.time_series_scores = {i: 1.0 for i in range(1, 46)}
                 self.xgb_weights = {i: 1.0 for i in range(1, 46)}
+                self.neural_weights = {i: 1.0 for i in range(1, 46)}
                 self.bias_analysis = {"current_gaps": {}, "balanced_weights": {i: 1.0 for i in range(1, 46)}}
 
             if not TORCH_AVAILABLE:
                 self.is_trained = True
+                self.trained_models = []
+                self.neural_weights = {i: 1.0 for i in range(1, 46)}
                 return {"status": "Fallback Statistical & ML Mode Active", "trained": False}
 
             X, y = self.prepare_training_data(history_records)
@@ -541,6 +650,8 @@ class LottoAILearningModel:
                 except Exception as ex:
                     _log.warning(f"GRU fitting warning: {ex}", exc_info=True)
 
+            self.trained_models = list(trained_models)
+            self.neural_weights = self._build_neural_weight_map(history_records)
             self.is_trained = True
             return {"status": "Success", "epochs": epochs, "trained": True, "models": trained_models + ["ARIMA", "XGBoost"]}
         except Exception as e:
@@ -556,10 +667,12 @@ class LottoAILearningModel:
 
             return {
                 "lstm_trained": self.is_trained,
+                "trained_models": list(self.trained_models),
                 "co_occurrence_matrix": safe_co_occurrence,
                 "transition_matrix": self.transition_matrix,
                 "time_series_scores": self.time_series_scores,
                 "xgb_weights": self.xgb_weights,
+                "neural_weights": self.neural_weights,
                 "bias_analysis": self.bias_analysis,
                 "frequency_distribution": self.frequency_distribution,
                 "trend_score": 0.96 if self.is_trained else 0.50,
@@ -581,7 +694,8 @@ class LottoAILearningModel:
                 base_w = float(weights_map.get(i, 1.0)) if weights_map else 1.0
                 ts_w = float(self.time_series_scores.get(i, 1.0))
                 xgb_w = float(self.xgb_weights.get(i, 1.0))
-                combined_w = base_w * 0.3 + ts_w * 0.3 + xgb_w * 0.4
+                neural_w = float(self.neural_weights.get(i, 1.0))
+                combined_w = base_w * 0.25 + ts_w * 0.25 + xgb_w * 0.30 + neural_w * 0.20
                 weights.append(max(0.1, combined_w))
 
             total_w = sum(weights)
