@@ -15,6 +15,7 @@ from core.generation_schema import (
     derive_score_weights_from_history,
     resolve_total_algorithms_active,
 )
+from core.quality_gate import calculate_ac_value as shared_calculate_ac_value, passes_quality_gate
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -27,6 +28,18 @@ _log = logging.getLogger("AlgorithmHub")
 
 from data.repositories.lotto_repository import LottoRepository
 from core.lotto_evaluator import LottoEvaluator
+
+
+class QualityGate:
+    """Backward-compatible quality gate adapter kept for legacy tests/imports."""
+
+    def evaluate(self, numbers: list[int]) -> tuple[bool, dict[str, int]]:
+        cleaned = sorted({int(n) for n in numbers if 1 <= int(n) <= 45})
+        total_sum = int(sum(cleaned))
+        odd_count = int(sum(1 for n in cleaned if n % 2 != 0))
+        ac_value = int(shared_calculate_ac_value(cleaned))
+        passed = bool(passes_quality_gate(cleaned, strict=True))
+        return passed, {"sum": total_sum, "odd_count": odd_count, "ac_value": ac_value}
 
 
 class AlgorithmHub:
