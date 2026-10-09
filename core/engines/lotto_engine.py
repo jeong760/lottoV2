@@ -2,8 +2,11 @@
 import sys
 import os
 
-# [Defensive Measure] Bound OpenMP thread usage to reduce native library contention.
+# [Defensive Measure] TensorFlow multi-threading conflict and C-level segmentation fault prevention settings
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["OMP_NUM_THREADS"] = "4"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "2"
+os.environ["TF_NUM_INTEROP_THREADS"] = "2"
 
 import logging
 import importlib
@@ -183,6 +186,7 @@ class LottoEngine:
     def _detect_runtime_dependencies(self) -> dict[str, bool]:
         return {
             "sklearn": importlib.util.find_spec("sklearn") is not None,
+            "tensorflow": importlib.util.find_spec("tensorflow") is not None,
             "statsmodels": importlib.util.find_spec("statsmodels") is not None,
             "xgboost": importlib.util.find_spec("xgboost") is not None,
             "scipy": importlib.util.find_spec("scipy") is not None,
