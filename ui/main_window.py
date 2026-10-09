@@ -305,6 +305,8 @@ class LottoMainWindow(QMainWindow):
             if hasattr(self.sim_controller, 'worker') and self.sim_controller.worker is not None:
                 try:
                     if self.sim_controller.worker.isRunning():
+                        if hasattr(self.sim_controller.worker, "stop"):
+                            self.sim_controller.worker.stop()
                         self.sim_controller.worker.quit()
                         self.sim_controller.worker.wait(1000)
                 except Exception as re:

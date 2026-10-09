@@ -33,12 +33,16 @@ class StatisticsWidgetConnector:
                 comprehensive_stats = {"phase_c_analytics": phase_c_data}
 
             if hasattr(self.main_window, 'decade_dist_widget') and self.main_window.decade_dist_widget:
-                if hasattr(self.main_window.decade_dist_widget, 'update_distribution_data'):
-                    self.main_window.decade_dist_widget.update_distribution_data(decade_data.get("decade_distribution", {}))
+                if hasattr(self.main_window.decade_dist_widget, 'update_data'):
+                    self.main_window.decade_dist_widget.update_data(decade_data)
+                elif hasattr(self.main_window.decade_dist_widget, 'load_data'):
+                    self.main_window.decade_dist_widget.load_data()
 
             if hasattr(self.main_window, 'heatmap_widget') and self.main_window.heatmap_widget:
                 if hasattr(self.main_window.heatmap_widget, 'update_heat_with_gaps'):
                     self.main_window.heatmap_widget.update_heat_with_gaps(gaps_data)
+                elif hasattr(self.main_window.heatmap_widget, 'load_heatmap_data'):
+                    self.main_window.heatmap_widget.load_heatmap_data()
 
             if hasattr(self.main_window, 'statistical_metrics_widget') and self.main_window.statistical_metrics_widget:
                 if hasattr(self.main_window.statistical_metrics_widget, 'update_chi_square_metrics'):
@@ -93,10 +97,27 @@ class DataSyncController:
             try:
                 draws = LottoRepository.get_all_draws()
                 if draws:
-                    formatted_history = [
-                        {"draw": d.get("drwNo", i+1), "numbers": [d.get(f"drwtNo{j}", 0) for j in range(1, 7)]}
-                        for i, d in enumerate(draws)
-                    ]
+                    for i, d in enumerate(draws):
+                        draw_no_raw = d.get("draw_no", d.get("drwNo", i + 1))
+                        try:
+                            draw_no = int(draw_no_raw)
+                        except (TypeError, ValueError):
+                            draw_no = i + 1
+
+                        nums = []
+                        for j in range(1, 7):
+                            raw_val = d.get(f"num{j}")
+                            if raw_val is None:
+                                raw_val = d.get(f"drwtNo{j}")
+                            try:
+                                n = int(raw_val)
+                                if 1 <= n <= 45:
+                                    nums.append(n)
+                            except (TypeError, ValueError):
+                                continue
+
+                        if len(nums) == 6:
+                            formatted_history.append({"draw": draw_no, "numbers": nums})
             except Exception as stat_ex:
                 _log.warning(f"Failed to fetch draws for statistics: {stat_ex}", exc_info=True)
 
@@ -174,6 +195,16 @@ class DataSyncController:
     def on_ai_training_progress(self, epoch, total, loss, acc, lr, time_str):
         """Handle background AI training progress updates."""
         try:
+            ai_status_widget = getattr(self.main_window, 'ai_status_widget', None)
+            if (
+                ai_status_widget
+                and hasattr(ai_status_widget, 'ai_training_widget')
+                and ai_status_widget.ai_training_widget
+                and hasattr(ai_status_widget.ai_training_widget, 'update_training_metrics')
+            ):
+                ai_status_widget.ai_training_widget.update_training_metrics(epoch, total, loss, acc, lr, time_str)
+                return
+
             if hasattr(self.main_window, 'ai_training_widget') and self.main_window.ai_training_widget:
                 self.main_window.ai_training_widget.update_training_metrics(epoch, total, loss, acc, lr, time_str)
         except Exception as e:

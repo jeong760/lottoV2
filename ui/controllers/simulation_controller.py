@@ -472,8 +472,10 @@ class SimulationController:
             if self.worker is not None:
                 try:
                     if self.worker.isRunning():
+                        if hasattr(self.worker, "stop"):
+                            self.worker.stop()
                         self.worker.quit()
-                        self.worker.wait(500)
+                        self.worker.wait(1000)
                 except Exception as re:
                     _log.warning(f"Worker closing warning: {re}", exc_info=True)
                 finally:
@@ -555,6 +557,11 @@ class SimulationController:
         """Safely clean up worker thread resources."""
         if self.worker:
             try:
+                if self.worker.isRunning():
+                    if hasattr(self.worker, "stop"):
+                        self.worker.stop()
+                    self.worker.quit()
+                    self.worker.wait(1000)
                 self.worker.deleteLater()
             except Exception as ex:
                 _log.warning(f"Failed to safely delete worker via deleteLater: {ex}", exc_info=True)
