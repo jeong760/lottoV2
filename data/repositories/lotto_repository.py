@@ -11,7 +11,7 @@ from typing import List, Dict, Any, Optional
 
 # Ensure project root is in sys.path and initialize centralized logging
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(os.path.dirname(current_dir))) if "repositories" in current_dir else current_dir
+project_root = os.path.dirname(os.path.dirname(current_dir)) if "repositories" in current_dir else current_dir
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
@@ -31,7 +31,7 @@ class LottoRepository:
 
     @staticmethod
     def _get_db_path() -> str:
-        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         db_dir = os.path.join(project_root, "db")
         if not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
