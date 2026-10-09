@@ -137,7 +137,7 @@ class HistoricalContext:
         historical_draws: Sequence[Sequence[int]] | None = None, 
         ml_weights: np.ndarray | None = None,
         cooccur_weights: np.ndarray | None = None
-    ) -> HistoricalContext:
+    ) -> "HistoricalContext":
         """Builds historical context tensors and computes real statistical, entropy, and complexity metrics from draws."""
         cleaned = []
         for draw in historical_draws or []:
