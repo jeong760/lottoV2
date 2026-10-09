@@ -259,7 +259,7 @@ class LottoEvaluator:
         start_draw = int(start_test_draw)
         set_count = int(sets_per_draw)
 
-        if not all_draws or len(all_draws) < start_draw:
+        if not all_draws:
             return {"status": "error", "message": "Not enough historical data for the specified test range."}
 
         sorted_draws = sorted(all_draws, key=lambda x: int(x.get("draw_no", x.get("drwNo", 0)) if isinstance(x, dict) else 0))
@@ -269,6 +269,8 @@ class LottoEvaluator:
 
         if test_window_size and isinstance(test_window_size, int) and test_window_size > 0:
             test_draws = test_draws[-test_window_size:]
+        if not fixed_train_pool or not test_draws:
+            return {"status": "error", "message": "Not enough historical data for the specified test range."}
 
         def _safe_pct(part: float, total: float) -> float:
             return round((float(part) / float(total)) * 100.0, 4) if total > 0 else 0.0
@@ -298,6 +300,11 @@ class LottoEvaluator:
         rand_union_sizes: List[int] = []
 
         for draw in test_draws:
+            draw_no = int(draw.get("draw_no", draw.get("drwNo", 0)))
+            training_pool = [
+                historical_draw for historical_draw in sorted_draws
+                if int(historical_draw.get("draw_no", historical_draw.get("drwNo", 0))) < draw_no
+            ]
             raw_winning = draw.get("numbers", [])
             if not raw_winning:
                 raw_winning = [draw.get(f"drwtNo{i}") for i in range(1, 7)]
@@ -323,15 +330,15 @@ class LottoEvaluator:
             generated_sets = []
             try:
                 if hasattr(algorithm_engine, "generate_sets"):
-                    generated_sets = algorithm_engine.generate_sets(set_count=set_count, history_data=fixed_train_pool)
+                    generated_sets = algorithm_engine.generate_sets(set_count=set_count, history_data=training_pool)
                 elif callable(algorithm_engine):
-                    generated_sets = algorithm_engine(fixed_train_pool, set_count)
+                    generated_sets = algorithm_engine(training_pool, set_count)
                 else:
-                    for _ in range(set_count):
-                        generated_sets.append(sorted(random.sample(range(1, 46), 6)))
-            except Exception:
-                for _ in range(set_count):
-                    generated_sets.append(sorted(random.sample(range(1, 46), 6)))
+                    return {"status": "error", "message": "Algorithm engine is not callable."}
+            except Exception as exc:
+                return {"status": "error", "message": f"Algorithm generation failed: {exc}"}
+            if not generated_sets:
+                return {"status": "error", "message": "Algorithm generation returned no prediction sets."}
 
             # Evaluate algorithm sets
             algo_predicted_union = set()

@@ -160,11 +160,11 @@ class RealTimeAnalyticsWidget(QFrame):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(8)
 
-        # Top row cards (Odd/Even, Low/High)
+        # Top row cards (Odd/Even, High/Low)
         top_metrics_layout = QHBoxLayout()
         top_metrics_layout.setSpacing(8)
         top_metrics_layout.addWidget(self._create_sub_card("odd_even", "Odd / Even", "3 : 3", "Balanced Ratio"))
-        top_metrics_layout.addWidget(self._create_sub_card("high_low", "Low / High", "3 : 3", "Balanced Ratio"))
+        top_metrics_layout.addWidget(self._create_sub_card("high_low", "High / Low", "3 : 3", "Balanced Ratio"))
         right_layout.addLayout(top_metrics_layout)
 
         # Bottom row cards (Sum Distribution, AC Value)

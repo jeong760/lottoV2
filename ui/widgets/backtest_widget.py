@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 # ui/widgets/backtest_widget.py
 import logging
-import random
 import os
 import sys
 
@@ -79,6 +78,9 @@ class BacktestWorker(QThread):
                 self.finished_signal.emit({"status": "Error", "msg": "Insufficient history for rigorous backtesting."})
                 return
 
+            normalized_draws.sort(key=lambda draw: int(draw["draw_no"]))
+            test_count = min(max(1, int(self.test_rounds)), len(normalized_draws) - 30)
+            start_test_draw = int(normalized_draws[-test_count]["draw_no"])
             self.progress_signal.emit(10, "Initializing Walk-Forward time-series split...")
 
             engine = LottoEngine(historical_draws=[])
@@ -110,10 +112,7 @@ class BacktestWorker(QThread):
                     history_sets = _to_history_sets(train_pool)
                     if history_sets:
                         engine.historical_draws = history_sets
-                        if hasattr(engine, "markov_engine") and engine.markov_engine:
-                            engine.markov_engine.update_history(history_sets)
-                        if hasattr(engine, "monte_carlo_validator") and engine.monte_carlo_validator:
-                            engine.monte_carlo_validator.update_history(history_sets)
+                        engine._recalculate_analytics()
 
                     prediction_sets = engine.generate_prediction_sets(
                         set_count=max(1, int(set_count)),
@@ -135,13 +134,12 @@ class BacktestWorker(QThread):
                         if len(parsed) == 6 and parsed not in generated_sets:
                             generated_sets.append(parsed)
 
-                except Exception:
-                    generated_sets = []
-
-                while len(generated_sets) < int(set_count):
-                    sample = sorted(random.sample(range(1, 46), 6))
-                    if sample not in generated_sets:
-                        generated_sets.append(sample)
+                except Exception as exc:
+                    raise RuntimeError(f"Algorithm generation failed: {exc}") from exc
+                if len(generated_sets) < int(set_count):
+                    raise RuntimeError(
+                        f"Algorithm generated {len(generated_sets)} valid sets; expected {int(set_count)}."
+                    )
                 return generated_sets[:int(set_count)]
 
             self.progress_signal.emit(30, f"Evaluating {self.test_rounds} draws with Train/Test separation...")
@@ -150,7 +148,8 @@ class BacktestWorker(QThread):
             simulation_result = LottoEvaluator.run_backtest_simulation(
                 all_draws=normalized_draws,
                 algorithm_engine=real_algorithm_engine,
-                test_window_size=self.test_rounds,
+                start_test_draw=start_test_draw,
+                test_window_size=test_count,
                 sets_per_draw=5
             )
 

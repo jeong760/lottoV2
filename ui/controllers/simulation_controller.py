@@ -12,7 +12,6 @@ from data.lotto_db_helper import LottoDBHelper
 from core.algorithm_catalog import (
     DEFAULT_ALGORITHM_MODE_ID,
     get_mode_title,
-    get_runtime_selectable_mode_ids,
     resolve_algorithm_mode_id,
 )
 
@@ -74,7 +73,7 @@ class SimulationController:
     def on_generate_pressed(self, set_count: int):
         """Handle number generation request and initiate worker thread."""
         _log.info(f"[DEBUG] on_generate_pressed called with set_count={set_count}")
-        if self.is_generating:
+        if self.is_generating or (self.worker is not None and self.worker.isRunning()):
             _log.warning("Number generation and live simulation are already in progress.")
             return
 
@@ -94,10 +93,6 @@ class SimulationController:
                     selected_algo = self.main_window.system_parameters_widget.algorithm_combo.currentText()
 
             selected_algo_id = resolve_algorithm_mode_id(selected_algo)
-            if selected_algo_id == DEFAULT_ALGORITHM_MODE_ID:
-                selectable_ids = get_runtime_selectable_mode_ids(include_random=False)
-                if selectable_ids:
-                    selected_algo_id = random.choice(selectable_ids)
 
             self.current_algo_mode_id = selected_algo_id
             self.current_algo_title_display = get_mode_title(selected_algo_id)
@@ -163,8 +158,8 @@ class SimulationController:
             )
             self.worker.finished_signal.connect(lambda sets, discards, stats, meta: self.on_generation_finished(sets, discards, stats, meta, set_count))
             self.worker.error_signal.connect(self.on_generate_error)
-            self.worker.finished_signal.connect(lambda *_: self._cleanup_worker())
-            self.worker.error_signal.connect(lambda *_: self._cleanup_worker())
+            worker = self.worker
+            worker.finished.connect(lambda worker=worker: self._cleanup_worker(worker))
             self.worker.start()
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] on_generate_pressed exception: {e}\n{traceback.format_exc()}")
@@ -478,8 +473,7 @@ class SimulationController:
                         self.worker.wait(1000)
                 except Exception as re:
                     _log.warning(f"Worker closing warning: {re}", exc_info=True)
-                finally:
-                    self._cleanup_worker()
+                self._cleanup_worker(self.worker)
 
             self.is_generating = False
             self.drawing_phase = 'IDLE'
@@ -553,16 +547,15 @@ class SimulationController:
             self.target_discards_to_accumulate = 45000
             self.current_accumulated_discards = 0
 
-    def _cleanup_worker(self):
+    def _cleanup_worker(self, worker=None):
         """Safely clean up worker thread resources."""
-        if self.worker:
+        worker = worker or self.worker
+        if worker:
             try:
-                if self.worker.isRunning():
-                    if hasattr(self.worker, "stop"):
-                        self.worker.stop()
-                    self.worker.quit()
-                    self.worker.wait(1000)
-                self.worker.deleteLater()
+                if worker.isRunning():
+                    return
+                worker.deleteLater()
             except Exception as ex:
                 _log.warning(f"Failed to safely delete worker via deleteLater: {ex}", exc_info=True)
-            self.worker = None
+            if self.worker is worker:
+                self.worker = None

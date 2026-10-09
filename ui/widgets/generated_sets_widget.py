@@ -423,14 +423,18 @@ class GeneratedSetsWidget(QWidget):
                 numbers = record.get("numbers", record.get("set_numbers", record.get("nums", [])))
                 if not numbers and isinstance(record, dict):
                     flat_nums = []
-                    for k in [
-                        "n1", "n2", "n3", "n4", "n5", "n6",
-                        "bonus", "bnusNo",
-                        "num1", "num2", "num3", "num4", "num5", "num6",
-                        "drwtNo1", "drwtNo2", "drwtNo3", "drwtNo4", "drwtNo5", "drwtNo6",
-                    ]:
-                        if k in record:
-                            flat_nums.append(record[k])
+                    for i in range(1, 7):
+                        value = next(
+                            (record[key] for key in (f"n{i}", f"num{i}", f"drwtNo{i}")
+                             if record.get(key) is not None),
+                            0,
+                        )
+                        flat_nums.append(value)
+                    bonus = next(
+                        (record[key] for key in ("bonus", "bnusNo", "n7") if record.get(key) is not None),
+                        0,
+                    )
+                    flat_nums.append(bonus)
                     if flat_nums:
                         numbers = flat_nums
 
