@@ -29,6 +29,10 @@ def setup_logging(project_root_path=None):
     log_file = log_dir / "lotto_dashboard.log"
     log_file.touch(exist_ok=True)
 
+    # Avoid thread metadata resolution in LogRecord construction.
+    # This prevents worker-thread logging crashes on some Python 3.14 runtimes.
+    logging.logThreads = False
+
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
 
