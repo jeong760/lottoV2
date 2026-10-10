@@ -53,29 +53,21 @@ def check_and_install_required_packages(python_executable):
     req_path = os.path.join(project_root, "requirements.txt")
     
     missing_core = False
-    for mod_name in ["PyQt5", "pandas", "requests", "sklearn", "statsmodels", "torch", "openpyxl", "scipy"]:
+    for mod_name in ["PyQt5", "numpy", "pandas", "requests", "sklearn", "statsmodels", "torch", "openpyxl", "scipy"]:
         if importlib.util.find_spec(mod_name) is None:
             missing_core = True
             break
 
-    if missing_core or os.path.exists(req_path):
+    if missing_core and os.path.exists(req_path):
         _log.info("[LottoLauncher] Verifying/Installing dependencies from requirements.txt (quiet mode)...")
         try:
             subprocess.run(
-                [python_executable, "-m", "pip", "install", "numpy<2"],
+                [python_executable, "-m", "pip", "install", "-r", req_path],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                check=False
+                check=True
             )
-
-            if os.path.exists(req_path):
-                subprocess.run(
-                    [python_executable, "-m", "pip", "install", "-r", req_path],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    check=True
-                )
-                _log.info("[LottoLauncher] All dependencies installed and verified successfully.")
+            _log.info("[LottoLauncher] All dependencies installed and verified successfully.")
         except Exception as e:
             _log.error(f"[LottoLauncher] Error during dependency installation: {e}\n{traceback.format_exc()}")
 
