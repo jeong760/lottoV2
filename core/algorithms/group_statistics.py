@@ -4,7 +4,6 @@ import os
 import logging
 import random
 import numpy as np
-import scipy.stats as stats
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,9 +13,30 @@ if project_root not in sys.path:
 
 _log = logging.getLogger("GroupStatisticsAlgorithms")
 
+_SCIPY_IMPORT_ERROR = None
+try:
+    import scipy.stats as stats
+    SCIPY_AVAILABLE = True
+except Exception as _scipy_ex:
+    stats = None
+    SCIPY_AVAILABLE = False
+    _SCIPY_IMPORT_ERROR = _scipy_ex
+    _log.warning(
+        "scipy is not available for group_statistics (%s). Using NumPy Gaussian PDF fallback.",
+        _SCIPY_IMPORT_ERROR,
+    )
+
 from typing import List, Dict, Any, Optional
 from data.repositories.lotto_repository import LottoRepository
 from core.algorithms.base import BaseAlgorithm, HistoricalContext, _normalize, register_algorithm
+
+
+def _gaussian_pdf(values: list[int], loc: float, scale: float) -> np.ndarray:
+    safe_scale = float(scale) if float(scale) > 0 else 1.0
+    arr = np.asarray(values, dtype=np.float64)
+    coeff = 1.0 / (safe_scale * np.sqrt(2.0 * np.pi))
+    exponent = -0.5 * ((arr - float(loc)) / safe_scale) ** 2.0
+    return coeff * np.exp(exponent)
 
 
 def _extract_draw_numbers(draw: dict) -> list[int]:
@@ -60,7 +80,10 @@ def generate_by_normal_distribution() -> list[int]:
 
         # Calculate true Gaussian Probability Density Function (PDF) across 1~45
         candidate_pool = list(range(1, 46))
-        gaussian_probs = stats.norm.pdf(candidate_pool, loc=mean_val, scale=std_val)
+        if SCIPY_AVAILABLE and stats is not None:
+            gaussian_probs = stats.norm.pdf(candidate_pool, loc=mean_val, scale=std_val)
+        else:
+            gaussian_probs = _gaussian_pdf(candidate_pool, loc=mean_val, scale=std_val)
         
         # Empirical frequency weights from repository
         freq_counts = {i: 1.0 for i in range(1, 46)}

@@ -4,7 +4,15 @@ import os
 import logging
 from collections import Counter, defaultdict
 import numpy as np
-import scipy.stats as stats
+
+_SCIPY_IMPORT_ERROR = None
+try:
+    import scipy.stats as stats
+    SCIPY_AVAILABLE = True
+except Exception as _scipy_ex:
+    stats = None
+    SCIPY_AVAILABLE = False
+    _SCIPY_IMPORT_ERROR = _scipy_ex
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -14,6 +22,30 @@ if project_root not in sys.path:
 
 # Note: Logging setup is centralized in launcher.py to prevent redundant or misplaced log directory creation.
 _log = logging.getLogger("StatisticsController")
+if not SCIPY_AVAILABLE:
+    _log.warning(
+        "scipy is not available in StatisticsController (%s). Chi-square p-values will use fallback mode.",
+        _SCIPY_IMPORT_ERROR,
+    )
+
+
+def _safe_chisquare(observed: np.ndarray, expected: np.ndarray) -> tuple[float, float]:
+    try:
+        observed = np.asarray(observed, dtype=np.float64)
+        expected = np.asarray(expected, dtype=np.float64)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            chi2_fallback = float(np.sum(np.where(expected > 0.0, ((observed - expected) ** 2.0) / expected, 0.0)))
+    except Exception:
+        chi2_fallback = 0.0
+
+    if SCIPY_AVAILABLE and stats is not None:
+        try:
+            chi2_stat, p_value = stats.chisquare(f_obs=observed, f_exp=expected)
+            return float(chi2_stat), float(p_value)
+        except Exception as e:
+            _log.warning("SciPy chi-square execution failed in StatisticsController; fallback applied. detail=%s", e, exc_info=True)
+
+    return chi2_fallback, 1.0
 
 class AdvancedLottoStatisticsEngine:
     """
@@ -175,7 +207,10 @@ class AdvancedLottoStatisticsEngine:
         chi2_stat, p_value = 0.0, 1.0
         try:
             if total_selections > 0:
-                chi2_stat, p_value = stats.chisquare(f_obs=np.array(observed, dtype=np.float64), f_exp=np.array(expected, dtype=np.float64))
+                chi2_stat, p_value = _safe_chisquare(
+                    np.array(observed, dtype=np.float64),
+                    np.array(expected, dtype=np.float64),
+                )
         except Exception:
             chi2_stat, p_value = 0.0, 1.0
         

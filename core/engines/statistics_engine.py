@@ -2,13 +2,26 @@
 import logging
 import math
 import numpy as np
-import scipy.stats as stats
 from itertools import combinations
 from collections import Counter, defaultdict
 from typing import Dict, Any, List
 from data.repositories.lotto_repository import LottoRepository
 
+_SCIPY_IMPORT_ERROR = None
+try:
+    import scipy.stats as stats
+    SCIPY_AVAILABLE = True
+except Exception as _scipy_ex:
+    stats = None
+    SCIPY_AVAILABLE = False
+    _SCIPY_IMPORT_ERROR = _scipy_ex
+
 _log = logging.getLogger("StatisticsEngine")
+if not SCIPY_AVAILABLE:
+    _log.warning(
+        "SciPy is not available in StatisticsEngine (%s). Chi-square p-values will use fallback mode.",
+        _SCIPY_IMPORT_ERROR,
+    )
 
 
 class StatisticsEngine:
@@ -18,6 +31,31 @@ class StatisticsEngine:
     co-occurrence matrix, decade/digit distribution, Chi-Square goodness of fit,
     consecutive number patterns, AC value complexity, and trailing digit entropy.
     """
+
+    @staticmethod
+    def _safe_chisquare(observed: np.ndarray, expected: np.ndarray) -> tuple[float, float]:
+        """
+        Computes chi-square safely with SciPy when available, otherwise returns
+        a deterministic chi-square statistic with fallback p-value.
+        """
+        try:
+            observed = np.asarray(observed, dtype=np.float64)
+            expected = np.asarray(expected, dtype=np.float64)
+            with np.errstate(divide="ignore", invalid="ignore"):
+                chi2_fallback = float(
+                    np.sum(np.where(expected > 0.0, ((observed - expected) ** 2.0) / expected, 0.0))
+                )
+        except Exception:
+            chi2_fallback = 0.0
+
+        if SCIPY_AVAILABLE and stats is not None:
+            try:
+                chi2_stat, p_value = stats.chisquare(f_obs=observed, f_exp=expected)
+                return float(chi2_stat), float(p_value)
+            except Exception as e:
+                _log.warning("SciPy chi-square execution failed; using fallback p-value. detail=%s", e, exc_info=True)
+
+        return chi2_fallback, 1.0
 
     @staticmethod
     def get_comprehensive_statistics() -> dict[str, Any]:
@@ -164,7 +202,7 @@ class StatisticsEngine:
             if total_observed > 0:
                 expected = np.full(45, total_observed / 45.0, dtype=np.float64)
                 try:
-                    chi2_stat, p_value = stats.chisquare(f_obs=observed, f_exp=expected)
+                    chi2_stat, p_value = StatisticsEngine._safe_chisquare(observed, expected)
                 except Exception:
                     chi2_stat, p_value = 0.0, 1.0
             else:
@@ -289,7 +327,7 @@ class StatisticsEngine:
             if sum_exp > 0:
                 expected = expected * (total_count / sum_exp)
 
-            chi2_stat, p_value = stats.chisquare(f_obs=observed, f_exp=expected)
+            chi2_stat, p_value = StatisticsEngine._safe_chisquare(observed, expected)
             
             return {
                 "chi2_stat": float(chi2_stat),
