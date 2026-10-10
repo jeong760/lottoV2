@@ -669,7 +669,7 @@ class GeneratedSetsWidget(QWidget):
                 QMessageBox.warning(self, "Export Warning", "No rows selected or available for export.")
                 return
 
-            file_path, _ = QFileDialog.getSaveFileName(
+            file_path, selected_filter = QFileDialog.getSaveFileName(
                 self,
                 "Export to Excel",
                 "lotto_generated_sets.xlsx",
@@ -701,9 +701,13 @@ class GeneratedSetsWidget(QWidget):
                 raise RuntimeError("Excel export dependency missing: install pandas or openpyxl.")
 
             target_path = file_path
+            selected_filter = (selected_filter or "").lower()
             _, ext = os.path.splitext(target_path)
             ext = ext.lower()
-            if not ext:
+            if "*.csv" in selected_filter and ext != ".csv":
+                target_path = f"{os.path.splitext(target_path)[0]}.csv"
+                ext = ".csv"
+            elif not ext:
                 ext = ".xlsx"
                 target_path = f"{target_path}{ext}"
 
@@ -720,7 +724,17 @@ class GeneratedSetsWidget(QWidget):
                         excel_error,
                         exc_info=True,
                     )
-                    target_path = f"{os.path.splitext(target_path)[0]}.csv"
+                    fallback_base = os.path.splitext(target_path)[0]
+                    fallback_path = f"{fallback_base}.csv"
+                    if os.path.exists(fallback_path):
+                        suffix = 1
+                        while True:
+                            candidate_path = f"{fallback_base}_{suffix}.csv"
+                            if not os.path.exists(candidate_path):
+                                fallback_path = candidate_path
+                                break
+                            suffix += 1
+                    target_path = fallback_path
                     _write_csv(target_path)
                     fallback_note = "\n(Excel writer failed, exported CSV instead.)"
 
