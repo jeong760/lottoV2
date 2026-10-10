@@ -411,9 +411,11 @@ class SimulationController:
                 try:
                     single_metadata = self._build_persistence_metadata(include_rankings=(self.current_set_index == 0))
                     if len(valid_6_numbers) == 6:
-                        LottoDBHelper.save_generation_history(
+                        saved_ok = LottoDBHelper.save_generation_history(
                             set_count=1, generated_sets=[full_set_with_bonus], metadata=single_metadata
                         )
+                        if saved_ok is False:
+                            _log.error("Failed to persist generated set history for session batch %s", self.current_generation_batch_id)
                 except Exception as db_ex:
                     _log.critical(f"[CRITICAL DEBUG] Failed to save set to DB: {db_ex}\n{traceback.format_exc()}")
 

@@ -159,7 +159,7 @@ class LottoWorker(QThread):
                 max_consecutive_run=3,
             )
         except Exception as e:
-            _log.warning(f"Error in _passes_quality_gate: {e}", exc_info=True)
+            _log.error(f"Error in _passes_quality_gate: {e}", exc_info=True)
             return False
 
     def _passes_diversity_gate(self, raw_set: list, accepted_sets: list[list[int]]) -> bool:
@@ -191,6 +191,19 @@ class LottoWorker(QThread):
         except Exception as e:
             _log.warning(f"Error in _passes_diversity_gate: {e}", exc_info=True)
             return True
+
+    def _build_constrained_random_set(self) -> list[int]:
+        fixed_numbers = sorted(set(self.fixed_numbers))
+        if len(fixed_numbers) > 6:
+            return []
+        candidate_pool = [
+            number for number in range(1, 46)
+            if number not in self.excluded_numbers and number not in fixed_numbers
+        ]
+        needed = 6 - len(fixed_numbers)
+        if len(candidate_pool) < needed:
+            return []
+        return sorted(fixed_numbers + random.sample(candidate_pool, needed))
 
     def run(self):
         try:
@@ -240,6 +253,9 @@ class LottoWorker(QThread):
                     _log.warning(f"Engine generation fallback triggered: {ex}", exc_info=True)
 
             candidate_pool = [n for n in range(1, 46) if n not in self.excluded_numbers and n not in self.fixed_numbers]
+            if len(self.fixed_numbers) > 6 or len(candidate_pool) < 6 - len(self.fixed_numbers):
+                self.error_signal.emit("Fixed and excluded numbers leave fewer than six available distinct numbers.")
+                return
             discarded_total = 0
 
             for set_idx in range(1, self.set_count + 1):
@@ -262,11 +278,9 @@ class LottoWorker(QThread):
                             current_raw = sorted([int(n) for n in pred.get("numbers", [])[:6]])
 
                     if len(current_raw) != 6 or any(n < 1 or n > 45 for n in current_raw) or len(set(current_raw)) != 6 or any(n in self.excluded_numbers for n in current_raw) or any(f not in current_raw for f in self.fixed_numbers):
-                        needed = 6 - len(self.fixed_numbers)
-                        if len(candidate_pool) >= needed >= 0:
-                            current_raw = sorted(self.fixed_numbers + random.sample(candidate_pool, needed))
-                        else:
-                            current_raw = sorted(random.sample(range(1, 46), 6))
+                        current_raw = self._build_constrained_random_set()
+                        if len(current_raw) != 6:
+                            break
 
                     if (
                         self._passes_quality_gate(current_raw, latest_draw_nums)
@@ -282,25 +296,26 @@ class LottoWorker(QThread):
                     break
 
                 if len(raw_set) < 6:
-                    needed = 6 - len(self.fixed_numbers)
-                    if len(candidate_pool) >= needed >= 0:
-                        raw_set = sorted(self.fixed_numbers + random.sample(candidate_pool, needed))
-                    else:
-                        raw_set = sorted(random.sample(range(1, 46), 6))
-
                     retry_guard = 0
+                    accepted = False
                     while retry_guard < 120:
                         retry_guard += 1
+                        raw_set = self._build_constrained_random_set()
+                        if len(raw_set) != 6:
+                            break
                         if (
-                            raw_set not in all_generated_sets
+                            self._passes_quality_gate(raw_set, latest_draw_nums)
+                            and all(f in raw_set for f in self.fixed_numbers)
+                            and not any(n in self.excluded_numbers for n in raw_set)
+                            and len(set(raw_set)) == 6
+                            and raw_set not in all_generated_sets
                             and self._passes_diversity_gate(raw_set, all_generated_sets)
                         ):
+                            accepted = True
                             break
-
-                        if len(candidate_pool) >= needed >= 0:
-                            raw_set = sorted(self.fixed_numbers + random.sample(candidate_pool, needed))
-                        else:
-                            raw_set = sorted(random.sample(range(1, 46), 6))
+                    if not accepted:
+                        self.error_signal.emit("Unable to generate a set that satisfies the requested constraints.")
+                        return
 
                 remaining_pool = [n for n in range(1, 46) if n not in raw_set and n not in self.excluded_numbers]
                 bonus_ball = random.choice(remaining_pool) if remaining_pool else 1
@@ -316,7 +331,10 @@ class LottoWorker(QThread):
 
             _log.info(f"Quality Gate completed. Total discarded sets: {discarded_total}")
 
-            primary_numbers = all_generated_sets[0] if all_generated_sets else [3, 12, 24, 27, 35, 42]
+            if not all_generated_sets:
+                self.error_signal.emit("Unable to generate any sets that satisfy the requested constraints.")
+                return
+            primary_numbers = all_generated_sets[0]
             all_nums = set(range(1, 46))
             discards = sorted(list(all_nums - set(primary_numbers)))[:6]
             confidence_score = (

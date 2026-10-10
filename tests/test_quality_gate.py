@@ -61,3 +61,40 @@ def test_quality_gate_boundaries():
         assert isinstance(result, bool)
         
     _log.info("test_quality_gate_boundaries passed successfully.")
+
+
+def test_worker_random_fallback_preserves_fixed_and_excluded_constraints(monkeypatch):
+    worker = LottoWorker(
+        engine=MockEngine(),
+        set_count=1,
+        fixed_numbers=[1, 2],
+        excluded_numbers=[3, 4],
+    )
+    sampled_pool = []
+
+    def sample(pool, count):
+        sampled_pool.extend(pool)
+        return list(pool[:count])
+
+    monkeypatch.setattr("workers.lotto_worker.random.sample", sample)
+
+    result = worker._build_constrained_random_set()
+
+    assert len(result) == 6
+    assert {1, 2}.issubset(result)
+    assert 3 not in result and 4 not in result
+    assert set(sampled_pool).isdisjoint({1, 2, 3, 4})
+
+
+def test_worker_random_fallback_rejects_impossible_constraints(monkeypatch):
+    worker = LottoWorker(
+        engine=MockEngine(),
+        set_count=1,
+        excluded_numbers=list(range(1, 41)),
+    )
+    monkeypatch.setattr(
+        "workers.lotto_worker.random.sample",
+        lambda *_: pytest.fail("must not sample an impossible candidate pool"),
+    )
+
+    assert worker._build_constrained_random_set() == []

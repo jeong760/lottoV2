@@ -241,3 +241,28 @@
 2026-10-09 15:40:39 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
 2026-10-09 15:40:39 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
 2026-10-09 15:40:39 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-10 14:41:28 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-10 14:41:28 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
+2026-10-10 14:41:28 [INFO] [ConfigModule]: Configuration module loaded successfully with centralized logging setup and absolute paths.
+2026-10-10 14:41:28 [INFO] [RepositoriesModule]: [RepositoriesModule] Repositories package initialization completed.
+2026-10-10 14:41:28 [INFO] [DataModule]: [DataModule] Data package initialization completed.
+2026-10-10 14:41:28 [INFO] [UIModule]: [UIModule] UI package initialization completed (lazy export mode).
+2026-10-10 14:41:28 [INFO] [WidgetsModule]: [WidgetsModule] Widgets package initialization completed safely.
+2026-10-10 14:41:28 [WARNING] [StatisticsEngine]: SciPy is not available in StatisticsEngine (No module named 'scipy'). Chi-square p-values will use fallback mode.
+2026-10-10 14:41:28 [INFO] [WorkersModule]: [WorkersModule] Workers package initialization completed (lazy worker import mode).
+2026-10-10 14:41:28 [CRITICAL] [AlgorithmHub]: [CRITICAL DEBUG] AlgorithmHub generate_premium_numbers error: force fallback
+Traceback (most recent call last):
+  File "/home/runner/work/lottoV2/lottoV2/core/algorithm_hub.py", line 449, in generate_premium_numbers
+    diversified_pool = self._diversify_sets_with_kmeans(final_compliant_pool, raw_pool_size)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/lottoV2/lottoV2/tests/test_algorithm_hub.py", line 63, in <lambda>
+    monkeypatch.setattr(hub, "_diversify_sets_with_kmeans", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("force fallback")))
+                                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/lottoV2/lottoV2/tests/test_algorithm_hub.py", line 63, in <genexpr>
+    monkeypatch.setattr(hub, "_diversify_sets_with_kmeans", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("force fallback")))
+RuntimeError: force fallback
+
+2026-10-10 14:41:28 [INFO] [TestQualityGate]: Running test_ac_value_calculation...
+2026-10-10 14:41:28 [INFO] [TestQualityGate]: test_ac_value_calculation passed successfully.
+2026-10-10 14:41:28 [INFO] [TestQualityGate]: Running test_quality_gate_boundaries...
+2026-10-10 14:41:28 [INFO] [TestQualityGate]: test_quality_gate_boundaries passed successfully.

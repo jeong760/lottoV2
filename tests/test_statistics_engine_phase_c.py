@@ -77,3 +77,41 @@ def test_comprehensive_statistics_exposes_phase_c_payload(monkeypatch):
     for key in ("hot_numbers", "cold_numbers", "gap_prediction", "repeat_prediction", "number_network"):
         assert key in report
         assert key in report["phase_c_analytics"]
+
+
+def test_comprehensive_statistics_uses_draw_no_for_gap_ordering(monkeypatch):
+    draws = [
+        {"draw_no": 100, "num1": 1, "num2": 2, "num3": 3, "num4": 4, "num5": 5, "num6": 6},
+        {"draw_no": 200, "num1": 7, "num2": 8, "num3": 9, "num4": 10, "num5": 11, "num6": 12},
+        {"draw_no": 201, "num1": 13, "num2": 14, "num3": 15, "num4": 16, "num5": 17, "num6": 18},
+        {"draw_no": 202, "num1": 19, "num2": 20, "num3": 21, "num4": 22, "num5": 23, "num6": 24},
+        {"draw_no": 203, "num1": 25, "num2": 26, "num3": 27, "num4": 28, "num5": 29, "num6": 30},
+        {"draw_no": 204, "num1": 31, "num2": 32, "num3": 33, "num4": 34, "num5": 35, "num6": 36},
+    ]
+
+    monkeypatch.setattr(
+        statistics_engine_module.LottoRepository,
+        "get_all_draws",
+        staticmethod(lambda: draws),
+    )
+
+    report = StatisticsEngine.get_comprehensive_statistics()
+    periodicity = report.get("periodicity_analysis", {})
+    assert periodicity[1]["current_gap"] == 104
+
+
+def test_draw_number_resolution_tries_next_key_when_preferred_value_is_invalid():
+    assert statistics_engine_module._resolve_draw_number(
+        {"draw_no": "invalid", "draw": "204", "drwNo": 205}, fallback=1
+    ) == 204
+
+
+def test_phase_c_analytics_prefers_draw_no_for_sorting_and_intervals():
+    draws = [
+        {"draw_no": 100, "draw": 2, "numbers": [1, 2, 3, 4, 5, 6]},
+        {"draw_no": 200, "draw": 1, "numbers": [1, 2, 3, 4, 5, 6]},
+    ]
+
+    analytics = StatisticsEngine.build_phase_c_analytics(draws)
+
+    assert analytics["cycle_detection"]["avg_interval_map"][1] == 100.0

@@ -30,6 +30,14 @@ from data.repositories.lotto_repository import LottoRepository
 from core.lotto_evaluator import LottoEvaluator
 
 
+def _normalize_constraint_numbers(values: list | None, name: str) -> list[int]:
+    try:
+        numbers = [int(value) for value in (values or [])]
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must contain valid integers") from exc
+    return sorted({number for number in numbers if 1 <= number <= 45})
+
+
 class QualityGate:
     """Backward-compatible quality gate adapter kept for legacy tests/imports."""
 
@@ -169,6 +177,25 @@ class AlgorithmHub:
         except Exception:
             return 7
 
+    def _build_constrained_random_set(self, fixed_numbers: list[int], excluded_numbers: list[int]) -> list[int]:
+        """Builds one random set while strictly honoring fixed/excluded constraints."""
+        fixed_list = sorted({int(n) for n in (fixed_numbers or []) if 1 <= int(n) <= 45})
+        if len(fixed_list) > 6:
+            return []
+
+        excluded_set = {int(n) for n in (excluded_numbers or []) if 1 <= int(n) <= 45}
+        excluded_set = excluded_set.difference(set(fixed_list))
+
+        needed = 6 - len(fixed_list)
+        if needed < 0:
+            return []
+
+        candidate_pool = [n for n in range(1, 46) if n not in excluded_set and n not in fixed_list]
+        if len(candidate_pool) < needed:
+            return []
+
+        return sorted(fixed_list + random.sample(candidate_pool, needed))
+
     def _score_candidate_set(self, s_nums: list[int]) -> float:
         """
         [Optimization C: Multi-Tier Ensemble Scoring]
@@ -216,7 +243,7 @@ class AlgorithmHub:
                 if not s or len(s) < 6:
                     continue
                 s_sorted = sorted([int(n) for n in s[:6] if n is not None and str(n).isdigit() and 1 <= int(n) <= 45])
-                if len(s_sorted) != 6:
+                if len(s_sorted) != 6 or len(set(s_sorted)) != 6:
                     continue
 
                 s_set = set(s_sorted)
@@ -299,8 +326,8 @@ class AlgorithmHub:
             final_scored.sort(key=lambda x: x[0], reverse=True)
             return [ind for score, ind in final_scored]
         except Exception as e:
-            _log.warning(f"Error in _evolve_candidate_sets: {e}", exc_info=True)
-            return initial_pool
+            _log.error(f"Error in _evolve_candidate_sets: {e}", exc_info=True)
+            return self._apply_independence_and_overlap_filters(initial_pool, fixed_numbers or [], excluded_numbers or [])
 
     def _diversify_sets_with_kmeans(self, candidate_pool: list[list[int]], target_count: int) -> list[list[int]]:
         if len(candidate_pool) <= target_count:
@@ -378,10 +405,21 @@ class AlgorithmHub:
     ) -> tuple[list[list[int]], list[int], dict[str, Any], dict[str, Any]]:
         try:
             target_count = int(set_count)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("set_count must be a positive integer") from exc
+        if target_count <= 0:
+            raise ValueError("set_count must be a positive integer")
+        fixed_list = _normalize_constraint_numbers(fixed_numbers, "fixed_numbers")
+        excluded_list = _normalize_constraint_numbers(excluded_numbers, "excluded_numbers")
+        if len(fixed_list) > 6:
+            raise ValueError("At most six fixed numbers can be requested")
+        excluded_list = [n for n in excluded_list if n not in fixed_list]
+        available_numbers = 45 - len(fixed_list) - len(excluded_list)
+        if available_numbers < 6 - len(fixed_list):
+            raise ValueError("Constraints leave fewer than six available distinct numbers")
+
+        try:
             resolved_algorithm_id = resolve_algorithm_mode_id(selected_algorithm_id)
-            fixed_list = [int(n) for n in (fixed_numbers or []) if 1 <= int(n) <= 45]
-            excluded_list = [int(n) for n in (excluded_numbers or []) if 1 <= int(n) <= 45]
-            excluded_list = [n for n in excluded_list if n not in fixed_list]
 
             dynamic_weights = self._get_dynamic_algorithm_weights()
 
@@ -413,19 +451,31 @@ class AlgorithmHub:
             evolved_pool = self._evolve_candidate_sets(filtered_candidates, fixed_list, excluded_list, raw_pool_size)
             final_compliant_pool = self._apply_independence_and_overlap_filters(evolved_pool, fixed_list, excluded_list)
 
-            candidate_pool = [n for n in range(1, 46) if n not in excluded_list and n not in fixed_list]
             loop_guard = 0
             while len(final_compliant_pool) < raw_pool_size and loop_guard < 150:
                 loop_guard += 1
-                needed = 6 - len(fixed_list)
-                if len(candidate_pool) >= needed >= 0:
-                    sample = sorted(fixed_list + random.sample(candidate_pool, needed))
-                else:
-                    sample = sorted(random.sample(range(1, 46), 6))
+                sample = self._build_constrained_random_set(fixed_list, excluded_list)
+                if len(sample) != 6:
+                    break
                 
                 filtered_sample = self._apply_independence_and_overlap_filters([sample], fixed_list, excluded_list)
                 if filtered_sample and filtered_sample[0] not in final_compliant_pool:
                     final_compliant_pool.append(filtered_sample[0])
+
+            fallback_attempts = 0
+            max_fallback_attempts = max(300, target_count * 40)
+            while len(final_compliant_pool) < target_count and fallback_attempts < max_fallback_attempts:
+                fallback_attempts += 1
+                fallback_sample = self._build_constrained_random_set(fixed_list, excluded_list)
+                if len(fallback_sample) != 6:
+                    break
+                filtered_sample = self._apply_independence_and_overlap_filters(
+                    [fallback_sample], fixed_list, excluded_list
+                )
+                if filtered_sample and filtered_sample[0] not in final_compliant_pool:
+                    final_compliant_pool.append(filtered_sample[0])
+            if len(final_compliant_pool) < target_count:
+                raise RuntimeError("Unable to generate enough sets that satisfy all constraints")
 
             diversified_pool = self._diversify_sets_with_kmeans(final_compliant_pool, raw_pool_size)
 
@@ -450,13 +500,10 @@ class AlgorithmHub:
                 score_weights=score_weights,
             )
             generated_sets = [item[1] for item in scored_pool[:target_count]]
+            if len(generated_sets) < target_count:
+                raise RuntimeError("Unable to rank enough constraint-compliant sets")
 
-            while len(generated_sets) < target_count:
-                fallback_sample = sorted(random.sample(range(1, 46), 6))
-                if fallback_sample not in generated_sets:
-                    generated_sets.append(fallback_sample)
-
-            primary_numbers = generated_sets[0] if generated_sets else [3, 12, 24, 27, 35, 42]
+            primary_numbers = generated_sets[0]
             all_nums = set(range(1, 46))
             selected_set = set(primary_numbers)
             discards = sorted(list(all_nums - selected_set))[:6]
@@ -478,6 +525,7 @@ class AlgorithmHub:
                 extras={
                     "top_ranked_combinations": top_ranked_combinations,
                     "score_weight_profile": {k: round(float(v), 4) for k, v in score_weights.items()},
+                    "dynamic_weights": {k: round(float(v), 4) for k, v in dynamic_weights.items()},
                 },
             )
 
@@ -485,8 +533,25 @@ class AlgorithmHub:
 
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] AlgorithmHub generate_premium_numbers error: {e}\n{traceback.format_exc()}")
-            fallback_sets = [sorted(random.sample(range(1, 46), 6)) for _ in range(int(set_count))]
-            fallback_stats = build_generation_stats(fallback_sets[0], 75.0, 12)
+
+            fallback_sets = []
+            fallback_attempts = 0
+            max_fallback_attempts = max(500, target_count * 60)
+            while len(fallback_sets) < target_count and fallback_attempts < max_fallback_attempts:
+                fallback_attempts += 1
+                sample = self._build_constrained_random_set(fixed_list, excluded_list)
+                if len(sample) != 6:
+                    break
+                filtered_sample = self._apply_independence_and_overlap_filters(
+                    [sample], fixed_list, excluded_list
+                )
+                if filtered_sample and filtered_sample[0] not in fallback_sets:
+                    fallback_sets.append(filtered_sample[0])
+
+            if len(fallback_sets) < target_count:
+                raise RuntimeError("Unable to generate enough sets that satisfy all constraints") from e
+            stats_seed = fallback_sets[0]
+            fallback_stats = build_generation_stats(stats_seed, 75.0, 12)
             fallback_scored = [(65.0 - idx * 0.5, nums) for idx, nums in enumerate(fallback_sets)]
             fallback_top_ranked = build_top_ranked_combinations(fallback_scored, limit=50)
             fallback_score_weights = derive_score_weights_from_history([], lookback=120)

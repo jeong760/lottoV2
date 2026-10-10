@@ -24,6 +24,21 @@ if not SCIPY_AVAILABLE:
     )
 
 
+def _resolve_draw_number(draw_like: Any, fallback: int = 0) -> int:
+    if isinstance(draw_like, dict):
+        for key in ("draw_no", "draw", "drwNo"):
+            value = draw_like.get(key)
+            if value is not None:
+                try:
+                    return int(value)
+                except (ValueError, TypeError):
+                    continue
+    try:
+        return int(fallback)
+    except (ValueError, TypeError):
+        return 0
+
+
 class StatisticsEngine:
     """
     Expert-level comprehensive lotto statistics and probability analysis engine.
@@ -77,8 +92,8 @@ class StatisticsEngine:
                 return fallback_data
 
             # Sort history chronologically by draw number
-            sorted_history = sorted(all_draws, key=lambda x: int(x.get('draw') or x.get('drwNo', 0)))
-            latest_draw = int(sorted_history[-1].get('draw') or sorted_history[-1].get('drwNo', total_draws))
+            sorted_history = sorted(all_draws, key=lambda x: _resolve_draw_number(x, 0))
+            latest_draw = _resolve_draw_number(sorted_history[-1], total_draws)
 
             freq = {i: 0 for i in range(1, 46)}
             sums = []
@@ -97,7 +112,7 @@ class StatisticsEngine:
             ac_value_counts = defaultdict(int)
 
             for draw_idx, draw in enumerate(sorted_history):
-                draw_num = int(draw.get('draw') or draw.get('drwNo') or (draw_idx + 1))
+                draw_num = _resolve_draw_number(draw, draw_idx + 1)
                 nums = []
                 
                 # Support both modern keys (num1~6) and legacy keys (drwtNo1~6)
@@ -370,17 +385,14 @@ class StatisticsEngine:
 
             sorted_history = sorted(
                 history_data,
-                key=lambda x: int(x.get("draw") or x.get("draw_no") or x.get("drwNo", 0)) if isinstance(x, dict) else 0,
+                key=lambda x: _resolve_draw_number(x, 0),
             )
 
             normalized = []
             for idx, draw in enumerate(sorted_history, start=1):
                 if not isinstance(draw, dict):
                     continue
-                try:
-                    draw_no = int(draw.get("draw") or draw.get("draw_no") or draw.get("drwNo") or idx)
-                except (ValueError, TypeError):
-                    draw_no = idx
+                draw_no = _resolve_draw_number(draw, idx)
 
                 raw_nums = draw.get("numbers", [])
                 if not raw_nums:
