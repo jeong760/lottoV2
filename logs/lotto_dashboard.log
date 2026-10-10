@@ -271,3 +271,7 @@ RuntimeError: force fallback
 2026-10-10 15:15:14 [INFO] [DataModule]: [DataModule] Data package initialization completed.
 2026-10-10 15:15:15 [INFO] [DBBootstrapper]: Fetching bootstrap data from remote source: https://raw.githubusercontent.com/papaya5rhw1984/lotto-data/main/all.json
 2026-10-10 15:15:15 [INFO] [DBBootstrapper]: GitHub source bulk synchronization successful! (1,244 draws synchronized)
+2026-10-10 15:38:15 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-10 15:38:15 [INFO] [RepositoriesModule]: [RepositoriesModule] Repositories package initialization completed.
+2026-10-10 15:38:15 [INFO] [DataModule]: [DataModule] Data package initialization completed.
+2026-10-10 15:38:15 [INFO] [DBBootstrapper]: Fetching bootstrap data from remote source: https://raw.githubusercontent.com/papaya5rhw1984/lotto-data/main/all.json

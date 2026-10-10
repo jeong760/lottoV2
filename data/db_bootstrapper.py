@@ -13,6 +13,8 @@ project_root = os.path.dirname(current_dir) if "data" in current_dir else curren
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
+from data.draw_statistics import extract_draw_statistics
+
 _log = logging.getLogger("DBBootstrapper")
 
 GITHUB_JSON_URL = "https://raw.githubusercontent.com/papaya5rhw1984/lotto-data/main/all.json"
@@ -75,13 +77,12 @@ class DBBootstrapper:
                 num1 INTEGER, num2 INTEGER, num3 INTEGER,
                 num4 INTEGER, num5 INTEGER, num6 INTEGER,
                 bonus INTEGER,
-                first_accumamnt INTEGER DEFAULT 0,
-                first_przwner_co INTEGER DEFAULT 0,
-                first_winamnt INTEGER DEFAULT 0,
-                second_winamnt INTEGER DEFAULT 0,
-                third_winamnt INTEGER DEFAULT 0,
-                fourth_winamnt INTEGER DEFAULT 0,
-                fifth_winamnt INTEGER DEFAULT 0
+                tot_sellamnt INTEGER DEFAULT 0,
+                first_accumamnt INTEGER DEFAULT 0, first_przwner_co INTEGER DEFAULT 0, first_winamnt INTEGER DEFAULT 0,
+                second_accumamnt INTEGER DEFAULT 0, second_przwner_co INTEGER DEFAULT 0, second_winamnt INTEGER DEFAULT 0,
+                third_accumamnt INTEGER DEFAULT 0, third_przwner_co INTEGER DEFAULT 0, third_winamnt INTEGER DEFAULT 0,
+                fourth_accumamnt INTEGER DEFAULT 0, fourth_przwner_co INTEGER DEFAULT 0, fourth_winamnt INTEGER DEFAULT 0,
+                fifth_accumamnt INTEGER DEFAULT 0, fifth_przwner_co INTEGER DEFAULT 0, fifth_winamnt INTEGER DEFAULT 0
             )
         """)
 
@@ -97,12 +98,36 @@ class DBBootstrapper:
                 firstAccumamnt INTEGER DEFAULT 0,
                 firstPrzwnerCo INTEGER DEFAULT 0,
                 firstWinamnt INTEGER DEFAULT 0,
-                secondWinamnt INTEGER DEFAULT 0,
-                thirdWinamnt INTEGER DEFAULT 0,
-                fourthWinamnt INTEGER DEFAULT 0,
-                fifthWinamnt INTEGER DEFAULT 0
+                secondAccumamnt INTEGER DEFAULT 0, secondPrzwnerCo INTEGER DEFAULT 0, secondWinamnt INTEGER DEFAULT 0,
+                thirdAccumamnt INTEGER DEFAULT 0, thirdPrzwnerCo INTEGER DEFAULT 0, thirdWinamnt INTEGER DEFAULT 0,
+                fourthAccumamnt INTEGER DEFAULT 0, fourthPrzwnerCo INTEGER DEFAULT 0, fourthWinamnt INTEGER DEFAULT 0,
+                fifthAccumamnt INTEGER DEFAULT 0, fifthPrzwnerCo INTEGER DEFAULT 0, fifthWinamnt INTEGER DEFAULT 0
             )
         """)
+
+        required_columns = {
+            "lotto_draws": [
+                ("tot_sellamnt", "INTEGER DEFAULT 0"),
+                ("first_accumamnt", "INTEGER DEFAULT 0"), ("first_przwner_co", "INTEGER DEFAULT 0"), ("first_winamnt", "INTEGER DEFAULT 0"),
+                ("second_accumamnt", "INTEGER DEFAULT 0"), ("second_przwner_co", "INTEGER DEFAULT 0"), ("second_winamnt", "INTEGER DEFAULT 0"),
+                ("third_accumamnt", "INTEGER DEFAULT 0"), ("third_przwner_co", "INTEGER DEFAULT 0"), ("third_winamnt", "INTEGER DEFAULT 0"),
+                ("fourth_accumamnt", "INTEGER DEFAULT 0"), ("fourth_przwner_co", "INTEGER DEFAULT 0"), ("fourth_winamnt", "INTEGER DEFAULT 0"),
+                ("fifth_accumamnt", "INTEGER DEFAULT 0"), ("fifth_przwner_co", "INTEGER DEFAULT 0"), ("fifth_winamnt", "INTEGER DEFAULT 0"),
+            ],
+            "lotto_history": [
+                ("totSellamnt", "INTEGER DEFAULT 0"),
+                ("firstAccumamnt", "INTEGER DEFAULT 0"), ("firstPrzwnerCo", "INTEGER DEFAULT 0"), ("firstWinamnt", "INTEGER DEFAULT 0"),
+                ("secondAccumamnt", "INTEGER DEFAULT 0"), ("secondPrzwnerCo", "INTEGER DEFAULT 0"), ("secondWinamnt", "INTEGER DEFAULT 0"),
+                ("thirdAccumamnt", "INTEGER DEFAULT 0"), ("thirdPrzwnerCo", "INTEGER DEFAULT 0"), ("thirdWinamnt", "INTEGER DEFAULT 0"),
+                ("fourthAccumamnt", "INTEGER DEFAULT 0"), ("fourthPrzwnerCo", "INTEGER DEFAULT 0"), ("fourthWinamnt", "INTEGER DEFAULT 0"),
+                ("fifthAccumamnt", "INTEGER DEFAULT 0"), ("fifthPrzwnerCo", "INTEGER DEFAULT 0"), ("fifthWinamnt", "INTEGER DEFAULT 0"),
+            ],
+        }
+        for table, columns in required_columns.items():
+            existing_columns = {row[1] for row in cursor.execute(f"PRAGMA table_info({table})")}
+            for column, column_type in columns:
+                if column not in existing_columns:
+                    cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_type}")
 
         conn.commit()
 
@@ -145,10 +170,13 @@ class DBBootstrapper:
 
                         if all(n is not None for n in [n1, n2, n3, n4, n5, n6]):
                             try:
+                                total_sales, prize_stats = extract_draw_statistics(item, draw_no)
+                                prize_stats = prize_stats or [(0, 0, 0)] * 5
                                 row_data = (
                                     draw_no, str(draw_date),
                                     int(n1), int(n2), int(n3), int(n4), int(n5), int(n6),
-                                    int(bonus)
+                                    int(bonus), total_sales or 0,
+                                    *(value for rank_stats in prize_stats for value in rank_stats),
                                 )
                                 batch_draws.append(row_data)
                                 batch_history.append(row_data)
@@ -157,13 +185,27 @@ class DBBootstrapper:
 
                 if batch_draws:
                     cursor.executemany("""
-                        INSERT OR REPLACE INTO lotto_draws (draw_no, draw_date, num1, num2, num3, num4, num5, num6, bonus)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT OR REPLACE INTO lotto_draws (
+                            draw_no, draw_date, num1, num2, num3, num4, num5, num6, bonus, tot_sellamnt,
+                            first_accumamnt, first_przwner_co, first_winamnt,
+                            second_accumamnt, second_przwner_co, second_winamnt,
+                            third_accumamnt, third_przwner_co, third_winamnt,
+                            fourth_accumamnt, fourth_przwner_co, fourth_winamnt,
+                            fifth_accumamnt, fifth_przwner_co, fifth_winamnt
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, batch_draws)
 
                     cursor.executemany("""
-                        INSERT OR REPLACE INTO lotto_history (drwNo, drwNoDate, drwtNo1, drwtNo2, drwtNo3, drwtNo4, drwtNo5, drwtNo6, bnusNo)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        INSERT OR REPLACE INTO lotto_history (
+                            drwNo, drwNoDate, drwtNo1, drwtNo2, drwtNo3, drwtNo4, drwtNo5, drwtNo6, bnusNo, totSellamnt,
+                            firstAccumamnt, firstPrzwnerCo, firstWinamnt,
+                            secondAccumamnt, secondPrzwnerCo, secondWinamnt,
+                            thirdAccumamnt, thirdPrzwnerCo, thirdWinamnt,
+                            fourthAccumamnt, fourthPrzwnerCo, fourthWinamnt,
+                            fifthAccumamnt, fifthPrzwnerCo, fifthWinamnt
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, batch_history)
 
                     conn.commit()
