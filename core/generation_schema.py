@@ -38,7 +38,11 @@ def resolve_total_algorithms_active(engine_like: Any, default: int = 0) -> int:
 
 def build_generation_stats(numbers: Sequence[int], confidence: float, contributors: int) -> dict[str, Any]:
     cleaned: list[int] = []
-    source_numbers = numbers if isinstance(numbers, Sequence) else []
+    source_numbers = (
+        numbers
+        if isinstance(numbers, Sequence) and not isinstance(numbers, (str, bytes, bytearray, memoryview))
+        else []
+    )
     for raw in source_numbers:
         try:
             iv = int(raw)

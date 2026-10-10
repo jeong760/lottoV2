@@ -52,6 +52,13 @@ def test_build_generation_stats_handles_non_numeric_inputs():
     assert stats["contributors"] == 1
 
 
+def test_build_generation_stats_rejects_string_and_bytes_like_inputs():
+    for numbers in ("123456", b"123456", bytearray(b"123456"), memoryview(b"123456")):
+        stats = build_generation_stats(numbers, confidence=80.0, contributors=1)
+
+        assert stats["sum"] == 123
+
+
 def test_build_generation_metadata_schema():
     metadata = build_generation_metadata(
         algorithm_id="ml_gradient",
