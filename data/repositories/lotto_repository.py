@@ -114,10 +114,19 @@ class LottoRepository:
                         cursor.execute(f"ALTER TABLE lotto_draws ADD COLUMN {col_name} {col_type};")
                     except sqlite3.OperationalError:
                         pass
-                    try:
+
+                history_required_cols = [
+                    ("totSellamnt", "INTEGER DEFAULT 0"),
+                    ("firstAccumamnt", "INTEGER DEFAULT 0"), ("firstPrzwnerCo", "INTEGER DEFAULT 0"), ("firstWinamnt", "INTEGER DEFAULT 0"),
+                    ("secondAccumamnt", "INTEGER DEFAULT 0"), ("secondPrzwnerCo", "INTEGER DEFAULT 0"), ("secondWinamnt", "INTEGER DEFAULT 0"),
+                    ("thirdAccumamnt", "INTEGER DEFAULT 0"), ("thirdPrzwnerCo", "INTEGER DEFAULT 0"), ("thirdWinamnt", "INTEGER DEFAULT 0"),
+                    ("fourthAccumamnt", "INTEGER DEFAULT 0"), ("fourthPrzwnerCo", "INTEGER DEFAULT 0"), ("fourthWinamnt", "INTEGER DEFAULT 0"),
+                    ("fifthAccumamnt", "INTEGER DEFAULT 0"), ("fifthPrzwnerCo", "INTEGER DEFAULT 0"), ("fifthWinamnt", "INTEGER DEFAULT 0"),
+                ]
+                existing_history_cols = {row[1] for row in cursor.execute("PRAGMA table_info(lotto_history)")}
+                for col_name, col_type in history_required_cols:
+                    if col_name not in existing_history_cols:
                         cursor.execute(f"ALTER TABLE lotto_history ADD COLUMN {col_name} {col_type};")
-                    except sqlite3.OperationalError:
-                        pass
 
                 cursor.execute("""
                     CREATE TABLE IF NOT EXISTS generated_sets (

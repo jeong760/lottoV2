@@ -47,6 +47,12 @@ def test_bootstrap_maps_new_sales_and_divisions(tmp_path, monkeypatch):
         lambda *args, **kwargs: SimpleNamespace(status_code=200, json=lambda: [DRAW]),
     )
     db_path = tmp_path / "bootstrap.db"
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE lotto_history (drwNo INTEGER PRIMARY KEY, drwNoDate TEXT, "
+            "drwtNo1 INTEGER, drwtNo2 INTEGER, drwtNo3 INTEGER, drwtNo4 INTEGER, "
+            "drwtNo5 INTEGER, drwtNo6 INTEGER, bnusNo INTEGER)"
+        )
 
     db_bootstrapper.DBBootstrapper._bootstrap_lotto_master_db(str(db_path))
 
@@ -60,3 +66,24 @@ def test_bootstrap_maps_new_sales_and_divisions(tmp_path, monkeypatch):
 
     assert draw == (4904274000, 2002006800, 1, 2002006800)
     assert history == (4904274000, 554800000, 55480, 10000)
+
+
+def test_repository_migrates_legacy_history_before_batch_insert(tmp_path, monkeypatch):
+    db_path = tmp_path / "legacy.db"
+    monkeypatch.setattr(LottoRepository, "_get_db_path", staticmethod(lambda: str(db_path)))
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "CREATE TABLE lotto_history (drwNo INTEGER PRIMARY KEY, drwNoDate TEXT, "
+            "drwtNo1 INTEGER, drwtNo2 INTEGER, drwtNo3 INTEGER, drwtNo4 INTEGER, "
+            "drwtNo5 INTEGER, drwtNo6 INTEGER, bnusNo INTEGER)"
+        )
+
+    LottoRepository.save_draws_batch([DRAW])
+
+    with sqlite3.connect(db_path) as conn:
+        history = conn.execute(
+            "SELECT totSellamnt, firstAccumamnt, firstPrzwnerCo, firstWinamnt, "
+            "fifthAccumamnt, fifthPrzwnerCo, fifthWinamnt FROM lotto_history"
+        ).fetchone()
+
+    assert history == (4904274000, 2002006800, 1, 2002006800, 554800000, 55480, 10000)
