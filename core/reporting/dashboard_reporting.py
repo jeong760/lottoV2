@@ -177,10 +177,14 @@ def build_backtest_report_lines(result: dict[str, Any]) -> list[str]:
 
     test_window = _safe_int(result.get("test_total_draws", 0), 0)
     metric_definition = result.get("metric_definition", {})
-    algo = result.get("algorithm", {})
-    rand = result.get("random_baseline", {})
-    algo_metrics = algo.get("metrics", {}) if isinstance(algo, dict) else {}
-    rand_metrics = rand.get("metrics", {}) if isinstance(rand, dict) else {}
+    algo_raw = result.get("algorithm", {})
+    rand_raw = result.get("random_baseline", {})
+    algo = algo_raw if isinstance(algo_raw, dict) else {}
+    rand = rand_raw if isinstance(rand_raw, dict) else {}
+    algo_metrics_raw = algo.get("metrics", {})
+    rand_metrics_raw = rand.get("metrics", {})
+    algo_metrics = algo_metrics_raw if isinstance(algo_metrics_raw, dict) else {}
+    rand_metrics = rand_metrics_raw if isinstance(rand_metrics_raw, dict) else {}
 
     lines: list[str] = []
     lines.append("")
