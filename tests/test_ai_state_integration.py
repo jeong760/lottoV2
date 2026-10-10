@@ -143,3 +143,53 @@ def test_lotto_worker_load_ai_weights_falls_back_to_secondary_repository_key(mon
 
     assert calls == ["latest_weights_1_500", "latest_weights"]
     assert loaded == secondary_state
+
+
+def test_lotto_worker_diversity_gate_rejects_high_overlap_without_fixed_numbers():
+    dummy_worker = types.SimpleNamespace(fixed_numbers=[])
+    accepted_sets = [[1, 2, 3, 4, 5, 6]]
+
+    # Overlap 4 (>3 threshold) should be rejected.
+    assert (
+        lotto_worker.LottoWorker._passes_diversity_gate(
+            dummy_worker,
+            [1, 2, 3, 4, 20, 21],
+            accepted_sets,
+        )
+        is False
+    )
+
+    # Overlap 3 should be accepted.
+    assert (
+        lotto_worker.LottoWorker._passes_diversity_gate(
+            dummy_worker,
+            [1, 2, 3, 20, 21, 22],
+            accepted_sets,
+        )
+        is True
+    )
+
+
+def test_lotto_worker_diversity_gate_respects_fixed_number_overlap_floor():
+    dummy_worker = types.SimpleNamespace(fixed_numbers=[1, 2, 3, 4])
+    accepted_sets = [[1, 2, 3, 4, 5, 6]]
+
+    # With 4 fixed numbers, overlap 4 is unavoidable and should be accepted.
+    assert (
+        lotto_worker.LottoWorker._passes_diversity_gate(
+            dummy_worker,
+            [1, 2, 3, 4, 20, 21],
+            accepted_sets,
+        )
+        is True
+    )
+
+    # Overlap 5 (>4 threshold) should still be rejected as too similar.
+    assert (
+        lotto_worker.LottoWorker._passes_diversity_gate(
+            dummy_worker,
+            [1, 2, 3, 4, 5, 20],
+            accepted_sets,
+        )
+        is False
+    )

@@ -14,6 +14,7 @@ _log = logging.getLogger("AITrainingWidget")
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QGroupBox, QSizePolicy, QProgressBar
 from PyQt5.QtCore import Qt, QRectF
 from PyQt5.QtGui import QFont, QColor, QPainter, QPen
+from config import AUTO_AI_TRAIN_EPOCHS
 
 
 class AITrainingCircularGaugeWidget(QWidget):
@@ -94,7 +95,7 @@ class AITrainingWidget(QGroupBox):
         metrics_layout.setContentsMargins(0, 5, 0, 5)
         metrics_layout.setSpacing(4)
 
-        epoch_layout, self.val_epoch = self._create_metric_row("Epoch", "0 / 50")
+        epoch_layout, self.val_epoch = self._create_metric_row("Epoch", f"0 / {AUTO_AI_TRAIN_EPOCHS}")
         loss_layout, self.val_loss = self._create_metric_row("Loss", "0.0000")
         accuracy_layout, self.val_accuracy = self._create_metric_row("Accuracy", "0.0%")
         lr_layout, self.val_lr = self._create_metric_row("Learning Rate", "0.00010")

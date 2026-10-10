@@ -163,6 +163,36 @@ class LottoWorker(QThread):
             _log.warning(f"Error in _passes_quality_gate: {e}", exc_info=True)
             return False
 
+    def _passes_diversity_gate(self, raw_set: list, accepted_sets: list[list[int]]) -> bool:
+        """
+        Enforces cross-set diversity by limiting excessive overlap with already accepted sets.
+        """
+        try:
+            candidate = sorted([int(n) for n in raw_set[:6] if 1 <= int(n) <= 45])
+            if len(candidate) != 6:
+                return False
+
+            if not accepted_sets:
+                return True
+
+            # Keep fixed-number constraints feasible while reducing near-duplicate sets.
+            max_allowed_overlap = min(5, max(3, len(self.fixed_numbers)))
+            candidate_set = set(candidate)
+
+            for prev in accepted_sets:
+                if not isinstance(prev, (list, tuple)) or len(prev) < 6:
+                    continue
+                prev_set = set(int(n) for n in prev[:6] if 1 <= int(n) <= 45)
+                if len(prev_set) != 6:
+                    continue
+                overlap = len(candidate_set.intersection(prev_set))
+                if overlap > max_allowed_overlap:
+                    return False
+            return True
+        except Exception as e:
+            _log.warning(f"Error in _passes_diversity_gate: {e}", exc_info=True)
+            return True
+
     def run(self):
         try:
             _log.info(f"Venus Turbine Worker started generating {self.set_count} sets using [{self.algorithm_title}]...")
@@ -239,7 +269,11 @@ class LottoWorker(QThread):
                         else:
                             current_raw = sorted(random.sample(range(1, 46), 6))
 
-                    if self._passes_quality_gate(current_raw, latest_draw_nums) and current_raw not in all_generated_sets:
+                    if (
+                        self._passes_quality_gate(current_raw, latest_draw_nums)
+                        and current_raw not in all_generated_sets
+                        and self._passes_diversity_gate(current_raw, all_generated_sets)
+                    ):
                         raw_set = current_raw
                         break
                     else:
@@ -254,6 +288,20 @@ class LottoWorker(QThread):
                         raw_set = sorted(self.fixed_numbers + random.sample(candidate_pool, needed))
                     else:
                         raw_set = sorted(random.sample(range(1, 46), 6))
+
+                    retry_guard = 0
+                    while retry_guard < 120:
+                        retry_guard += 1
+                        if (
+                            raw_set not in all_generated_sets
+                            and self._passes_diversity_gate(raw_set, all_generated_sets)
+                        ):
+                            break
+
+                        if len(candidate_pool) >= needed >= 0:
+                            raw_set = sorted(self.fixed_numbers + random.sample(candidate_pool, needed))
+                        else:
+                            raw_set = sorted(random.sample(range(1, 46), 6))
 
                 remaining_pool = [n for n in range(1, 46) if n not in raw_set and n not in self.excluded_numbers]
                 bonus_ball = random.choice(remaining_pool) if remaining_pool else 1

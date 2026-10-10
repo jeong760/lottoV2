@@ -26,7 +26,7 @@ from core.engines import AIEngine
 from ai.ai_learning_model import LottoAILearningModel
 from data.repositories.ml_model_repository import MLModelRepository
 from utils.audit_security import AuditTrailSecurity
-from config import DB_DIR, SUM_MIN, SUM_MAX, ML_MAX_ITERATIONS, ML_TARGET_ACCURACY
+from config import AUTO_AI_TRAIN_EPOCHS, DB_DIR, SUM_MIN, SUM_MAX
 
 _log = logging.getLogger("AITrainWorker")
 
@@ -39,7 +39,7 @@ class AITrainWorker(QThread):
     progress_signal = pyqtSignal(int, int, float, float, float, str)
     finished_signal = pyqtSignal(dict)
 
-    def __init__(self, total_epochs=50, parent=None):
+    def __init__(self, total_epochs=AUTO_AI_TRAIN_EPOCHS, parent=None):
         super().__init__(parent)
         self.total_epochs = total_epochs
         self.start_time = 0.0
