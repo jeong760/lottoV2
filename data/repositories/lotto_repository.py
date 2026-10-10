@@ -17,6 +17,7 @@ if project_root not in sys.path:
 from utils.logger import setup_logging
 setup_logging(project_root)
 from utils.audit_security import AuditTrailSecurity
+from data.draw_statistics import extract_draw_statistics
 
 _log = logging.getLogger("LottoRepository")
 
@@ -236,47 +237,9 @@ class LottoRepository:
                         draw_dict.get("bonus_no") or 0
                     )
 
-                    tot_sell = int(draw_dict.get("totalSales") or draw_dict.get("totSellamnt") or draw_dict.get("tot_sellamnt") or 0)
-
-                    first_accum = 0; first_co = 0; first_win = 0
-                    second_accum = 0; second_co = 0; second_win = 0
-                    third_accum = 0; third_co = 0; third_win = 0
-                    fourth_accum = 0; fourth_co = 0; fourth_win = 0
-                    fifth_accum = 0; fifth_co = 0; fifth_win = 0
-
-                    prizes_list = draw_dict.get("prizes", [])
-                    if isinstance(prizes_list, list):
-                        for p in prizes_list:
-                            if isinstance(p, dict):
-                                rank = p.get("rank")
-                                winners = int(p.get("winners", 0) or 0)
-                                prize_per_winner = int(p.get("prizePerWinner", 0) or 0)
-
-                                if rank == 1:
-                                    first_co = winners
-                                    first_win = prize_per_winner
-                                    first_accum = winners * prize_per_winner
-                                elif rank == 2:
-                                    second_co = winners
-                                    second_win = prize_per_winner
-                                    second_accum = winners * prize_per_winner
-                                elif rank == 3:
-                                    third_co = winners
-                                    third_win = prize_per_winner
-                                    third_accum = winners * prize_per_winner
-                                elif rank == 4:
-                                    fourth_co = winners
-                                    fourth_win = prize_per_winner if prize_per_winner > 0 else 50000
-                                    fourth_accum = fourth_co * fourth_win
-                                elif rank == 5:
-                                    fifth_co = winners
-                                    fifth_win = prize_per_winner if prize_per_winner > 0 else (10000 if int(drw_no) <= 87 else 5000)
-                                    fifth_accum = fifth_co * fifth_win
-
-                    if fourth_accum == 0 and fourth_co > 0:
-                        fourth_accum = fourth_co * (fourth_win if fourth_win > 0 else 50000)
-                    if fifth_accum == 0 and fifth_co > 0:
-                        fifth_accum = fifth_co * (fifth_win if fifth_win > 0 else (10000 if int(drw_no) <= 87 else 5000))
+                    total_sales, prize_stats = extract_draw_statistics(draw_dict, int(drw_no))
+                    tot_sell = total_sales or 0
+                    prize_stats = prize_stats or [(0, 0, 0)] * 5
 
                     cursor.execute("""
                         INSERT OR REPLACE INTO lotto_draws (
@@ -292,11 +255,7 @@ class LottoRepository:
                         int(drw_no), str(drw_date),
                         sorted_nums[0], sorted_nums[1], sorted_nums[2], sorted_nums[3], sorted_nums[4], sorted_nums[5],
                         int(bonus), int(tot_sell),
-                        int(first_accum), int(first_co), int(first_win),
-                        int(second_accum), int(second_co), int(second_win),
-                        int(third_accum), int(third_co), int(third_win),
-                        int(fourth_accum), int(fourth_co), int(fourth_win),
-                        int(fifth_accum), int(fifth_co), int(fifth_win)
+                        *(value for rank_stats in prize_stats for value in rank_stats),
                     ))
 
                     cursor.execute("""
@@ -313,11 +272,7 @@ class LottoRepository:
                         int(drw_no), str(drw_date),
                         sorted_nums[0], sorted_nums[1], sorted_nums[2], sorted_nums[3], sorted_nums[4], sorted_nums[5],
                         int(bonus), int(tot_sell),
-                        int(first_accum), int(first_co), int(first_win),
-                        int(second_accum), int(second_co), int(second_win),
-                        int(third_accum), int(third_co), int(third_win),
-                        int(fourth_accum), int(fourth_co), int(fourth_win),
-                        int(fifth_accum), int(fifth_co), int(fifth_win)
+                        *(value for rank_stats in prize_stats for value in rank_stats),
                     ))
 
                 conn.commit()
