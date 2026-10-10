@@ -1,12 +1,12 @@
 # ui/controllers/simulation_controller.py
 import logging
+import importlib
 import random
 import time
 import uuid
 import psutil
 import traceback
 from PyQt5.QtCore import QTimer
-from workers.lotto_worker import LottoWorker
 from data.lotto_db_helper import LottoDBHelper
 from core.algorithm_catalog import (
     DEFAULT_ALGORITHM_MODE_ID,
@@ -15,6 +15,24 @@ from core.algorithm_catalog import (
 )
 
 _log = logging.getLogger("SimulationController")
+
+_LOTTO_WORKER_RESOLVED = False
+_LOTTO_WORKER_CLS = None
+
+
+def _resolve_lotto_worker_cls():
+    global _LOTTO_WORKER_RESOLVED, _LOTTO_WORKER_CLS
+    if _LOTTO_WORKER_RESOLVED:
+        return _LOTTO_WORKER_CLS
+
+    _LOTTO_WORKER_RESOLVED = True
+    try:
+        module = importlib.import_module("workers.lotto_worker")
+        _LOTTO_WORKER_CLS = getattr(module, "LottoWorker", None)
+    except Exception as e:
+        _LOTTO_WORKER_CLS = None
+        _log.warning("LottoWorker is unavailable. Number generation will be disabled. detail=%s", e)
+    return _LOTTO_WORKER_CLS
 
 class SimulationController:
     """Controller responsible for managing number generation, Venus turbine simulation, and drawing states."""
@@ -147,7 +165,12 @@ class SimulationController:
                 except Exception as ex:
                     _log.critical(f"[CRITICAL DEBUG] Failed to instantiate AlgorithmHub: {ex}\n{traceback.format_exc()}")
 
-            self.worker = LottoWorker(
+            lotto_worker_cls = _resolve_lotto_worker_cls()
+            if lotto_worker_cls is None:
+                self.on_generate_error("LottoWorker unavailable (missing optional dependencies).")
+                return
+
+            self.worker = lotto_worker_cls(
                 self.main_window.engine, 
                 set_count=set_count, 
                 algorithm_title=self.current_algo_title_display,

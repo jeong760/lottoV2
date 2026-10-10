@@ -1,5 +1,6 @@
 # ui/controllers/__init__.py
 import logging
+import importlib
 import os
 import sys
 
@@ -13,29 +14,33 @@ setup_logging(project_root)
 
 _log = logging.getLogger("ControllersModule")
 
-SimulationController = None
-DataSyncController = None
-StatisticsWidgetConnector = None
+_CONTROLLER_EXPORTS = {
+    "SimulationController": ("ui.controllers.simulation_controller", "SimulationController"),
+    "DataSyncController": ("ui.controllers.data_sync_controller", "DataSyncController"),
+    "StatisticsWidgetConnector": ("ui.controllers.data_sync_controller", "StatisticsWidgetConnector"),
+}
+_CONTROLLER_CACHE = {}
 
-# 1. Safe import of SimulationController
-try:
-    from ui.controllers.simulation_controller import SimulationController
-except ImportError:
+
+def __getattr__(name):
+    if name not in _CONTROLLER_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    if name in _CONTROLLER_CACHE:
+        return _CONTROLLER_CACHE[name]
+
+    module_name, attr_name = _CONTROLLER_EXPORTS[name]
     try:
-        from .simulation_controller import SimulationController
-    except ImportError as e:
-        _log.warning(f"[ControllersModule] Could not import 'SimulationController': {e}")
+        module = importlib.import_module(module_name)
+        value = getattr(module, attr_name)
+    except Exception as e:
+        _log.warning(f"[ControllersModule] Could not import '{name}': {e}")
+        value = None
 
-# 2. Safe import of DataSyncController and StatisticsWidgetConnector
-try:
-    from ui.controllers.data_sync_controller import DataSyncController, StatisticsWidgetConnector
-except ImportError:
-    try:
-        from .data_sync_controller import DataSyncController, StatisticsWidgetConnector
-    except ImportError as e:
-        _log.warning(f"[ControllersModule] Could not import 'DataSyncController': {e}")
+    _CONTROLLER_CACHE[name] = value
+    return value
 
-_log.info("[ControllersModule] Controllers package initialization completed safely.")
+_log.info("[ControllersModule] Controllers package initialization completed safely (lazy export mode).")
 
 __all__ = [
     "SimulationController",
