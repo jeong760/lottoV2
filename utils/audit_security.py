@@ -7,6 +7,8 @@ import json
 import datetime
 import logging
 import copy
+import tempfile
+import threading
 from typing import Dict, List, Any, Union, Optional
 
 # Ensure project root is in sys.path
@@ -16,6 +18,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 _log = logging.getLogger("AuditTrailSecurity")
+_LEGACY_SECRET_KEY = b"LottoV2_Audit_Security_Secret_Key_2026"
 
 
 def _load_audit_secret_key() -> bytes:
@@ -44,12 +47,22 @@ def _load_audit_secret_key() -> bytes:
     try:
         os.makedirs(secret_dir, exist_ok=True)
         generated = os.urandom(32)
-        with open(secret_path, "wb") as f:
-            f.write(generated)
+        temporary_path = None
         try:
-            os.chmod(secret_path, 0o600)
-        except Exception:
-            pass
+            with tempfile.NamedTemporaryFile(dir=secret_dir, delete=False) as f:
+                temporary_path = f.name
+                f.write(generated)
+                f.flush()
+                os.fsync(f.fileno())
+            os.chmod(temporary_path, 0o600)
+            try:
+                os.link(temporary_path, secret_path)
+            except FileExistsError:
+                with open(secret_path, "rb") as f:
+                    return f.read()
+        finally:
+            if temporary_path and os.path.exists(temporary_path):
+                os.unlink(temporary_path)
         _log.warning(
             "Generated a new local audit secret file. Set LOTTO_AUDIT_SECRET_KEY in production environments."
         )
@@ -71,13 +84,16 @@ class AuditTrailSecurity:
     
     # Internal secret key cache loaded from environment / managed secret storage.
     _SECRET_KEY = None
+    _SECRET_KEY_LOCK = threading.Lock()
 
     @classmethod
     def _get_secret_key(cls) -> bytes:
         if isinstance(cls._SECRET_KEY, (bytes, bytearray)) and len(cls._SECRET_KEY) > 0:
             return bytes(cls._SECRET_KEY)
-        cls._SECRET_KEY = _load_audit_secret_key()
-        return bytes(cls._SECRET_KEY)
+        with cls._SECRET_KEY_LOCK:
+            if not isinstance(cls._SECRET_KEY, (bytes, bytearray)) or not cls._SECRET_KEY:
+                cls._SECRET_KEY = _load_audit_secret_key()
+            return bytes(cls._SECRET_KEY)
 
     @staticmethod
     def _json_default_converter(o: Any) -> Any:
@@ -130,7 +146,7 @@ class AuditTrailSecurity:
         if metadata is None:
             metadata = {}
 
-        clean_numbers = sorted([int(n) for n in numbers if str(n).isdigit()])
+        clean_numbers = sorted([int(n) for n in numbers if n is not None and str(n).isdigit() and 1 <= int(n) <= 45])
 
         record = {
             "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -162,9 +178,20 @@ class AuditTrailSecurity:
             if not original_signature:
                 return False
                 
-            recalculated_signature = cls.generate_hash(record_copy)
-            
-            is_authentic = hmac.compare_digest(str(original_signature), str(recalculated_signature))
+            data_string = json.dumps(
+                record_copy,
+                sort_keys=True,
+                ensure_ascii=False,
+                default=cls._json_default_converter,
+            ).encode("utf-8")
+            keys = [cls._get_secret_key(), _LEGACY_SECRET_KEY]
+            is_authentic = any(
+                hmac.compare_digest(
+                    str(original_signature),
+                    hmac.new(key, data_string, hashlib.sha256).hexdigest(),
+                )
+                for key in keys
+            )
             if not is_authentic:
                 _log.warning("Tamper detection alert: Record signature mismatch detected!")
                 

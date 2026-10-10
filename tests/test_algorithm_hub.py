@@ -35,7 +35,7 @@ def test_generate_premium_numbers_fallback_honors_fixed_and_excluded_constraints
 
     monkeypatch.setattr(hub, "_get_dynamic_algorithm_weights", lambda: {})
     monkeypatch.setattr(hub, "generate_prediction_sets", lambda **kwargs: [])
-    monkeypatch.setattr(hub, "_apply_independence_and_overlap_filters", lambda sets, *_: [])
+    monkeypatch.setattr(hub, "_apply_independence_and_overlap_filters", lambda sets, *_: sets)
     monkeypatch.setattr(hub, "_evolve_candidate_sets", lambda *args, **kwargs: [])
     monkeypatch.setattr(hub, "_diversify_sets_with_kmeans", lambda *args, **kwargs: [])
     monkeypatch.setattr(hub, "_score_candidate_set", lambda _: 90.0)
@@ -48,9 +48,11 @@ def test_generate_premium_numbers_fallback_honors_fixed_and_excluded_constraints
     )
 
     assert len(generated_sets) == 3
+    ranked_sets = {tuple(item["numbers"]) for item in metadata["top_ranked_combinations"]}
     for row in generated_sets:
         assert {1, 2}.issubset(set(row))
         assert 3 not in row and 4 not in row and 5 not in row
+        assert tuple(row) in ranked_sets
 
 
 def test_generate_premium_numbers_exception_fallback_honors_constraints(monkeypatch):
@@ -58,7 +60,7 @@ def test_generate_premium_numbers_exception_fallback_honors_constraints(monkeypa
 
     monkeypatch.setattr(hub, "_get_dynamic_algorithm_weights", lambda: {})
     monkeypatch.setattr(hub, "generate_prediction_sets", lambda **kwargs: [])
-    monkeypatch.setattr(hub, "_apply_independence_and_overlap_filters", lambda sets, *_: [])
+    monkeypatch.setattr(hub, "_apply_independence_and_overlap_filters", lambda sets, *_: sets)
     monkeypatch.setattr(hub, "_evolve_candidate_sets", lambda *args, **kwargs: [])
     monkeypatch.setattr(hub, "_diversify_sets_with_kmeans", lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("force fallback")))
 
@@ -74,3 +76,14 @@ def test_generate_premium_numbers_exception_fallback_honors_constraints(monkeypa
     for row in generated_sets:
         assert 6 in row
         assert 7 not in row and 8 not in row and 9 not in row
+
+
+def test_generate_premium_numbers_rejects_invalid_or_impossible_constraints():
+    hub = _build_hub_without_init()
+
+    import pytest
+
+    with pytest.raises(ValueError, match="fixed_numbers"):
+        hub.generate_premium_numbers(fixed_numbers=["x"])
+    with pytest.raises(ValueError, match="fewer than six"):
+        hub.generate_premium_numbers(excluded_numbers=list(range(1, 41)))

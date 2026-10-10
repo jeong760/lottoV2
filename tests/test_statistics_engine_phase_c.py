@@ -98,3 +98,20 @@ def test_comprehensive_statistics_uses_draw_no_for_gap_ordering(monkeypatch):
     report = StatisticsEngine.get_comprehensive_statistics()
     periodicity = report.get("periodicity_analysis", {})
     assert periodicity[1]["current_gap"] == 104
+
+
+def test_draw_number_resolution_tries_next_key_when_preferred_value_is_invalid():
+    assert statistics_engine_module._resolve_draw_number(
+        {"draw_no": "invalid", "draw": "204", "drwNo": 205}, fallback=1
+    ) == 204
+
+
+def test_phase_c_analytics_prefers_draw_no_for_sorting_and_intervals():
+    draws = [
+        {"draw_no": 100, "draw": 2, "numbers": [1, 2, 3, 4, 5, 6]},
+        {"draw_no": 200, "draw": 1, "numbers": [1, 2, 3, 4, 5, 6]},
+    ]
+
+    analytics = StatisticsEngine.build_phase_c_analytics(draws)
+
+    assert analytics["cycle_detection"]["avg_interval_map"][1] == 100.0
