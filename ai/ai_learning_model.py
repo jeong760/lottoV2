@@ -19,6 +19,30 @@ if project_root not in sys.path:
 
 _log = logging.getLogger("AILearningModel")
 
+
+def _is_known_torch_native_init_failure(error: Exception) -> bool:
+    message = str(error or "").lower()
+    known_markers = (
+        "winerror 1114",
+        "dll 초기화 루틴",
+        "error loading",
+        "dll load failed",
+        "one of its dependencies",
+        "c10.dll",
+    )
+    return any(marker in message for marker in known_markers)
+
+
+def _log_torch_init_failure(error: Exception):
+    template = (
+        "PyTorch could not be initialized (%s). Deep learning LSTM/GRU features will run in fallback statistical mode."
+    )
+    if _is_known_torch_native_init_failure(error):
+        _log.info(template, error)
+    else:
+        _log.warning(template, error)
+
+
 try:
     import pandas as pd
     PANDAS_AVAILABLE = True
@@ -35,10 +59,7 @@ try:
     TORCH_AVAILABLE = True
 except Exception as e:
     TORCH_AVAILABLE = False
-    _log.warning(
-        "PyTorch could not be initialized (%s). Deep learning LSTM/GRU features will run in fallback statistical mode.",
-        e,
-    )
+    _log_torch_init_failure(e)
 
 try:
     from statsmodels.tsa.arima.model import ARIMA

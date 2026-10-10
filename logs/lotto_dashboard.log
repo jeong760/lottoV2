@@ -275,3 +275,48 @@ RuntimeError: force fallback
 2026-10-10 15:38:15 [INFO] [RepositoriesModule]: [RepositoriesModule] Repositories package initialization completed.
 2026-10-10 15:38:15 [INFO] [DataModule]: [DataModule] Data package initialization completed.
 2026-10-10 15:38:15 [INFO] [DBBootstrapper]: Fetching bootstrap data from remote source: https://raw.githubusercontent.com/papaya5rhw1984/lotto-data/main/all.json
+2026-10-10 21:27:11 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-10 21:27:11 [WARNING] [AILearningModel]: pandas is not available. Time-series rolling features will run in NumPy fallback mode.
+2026-10-10 21:27:11 [WARNING] [AILearningModel]: PyTorch could not be initialized (No module named 'torch'). Deep learning LSTM/GRU features will run in fallback statistical mode.
+2026-10-10 21:27:11 [WARNING] [AILearningModel]: statsmodels is not available. ARIMA time series analysis will run in fallback statistical mode.
+2026-10-10 21:27:11 [WARNING] [AILearningModel]: xgboost is not available. Tree-based weighting model will run in fallback statistical mode.
+2026-10-10 21:27:11 [INFO] [AIModule]: [AIModule] AI package initialization completed.
+2026-10-10 21:27:11 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
+2026-10-10 21:27:11 [WARNING] [GroupStatisticsAlgorithms]: scipy is not available for group_statistics (No module named 'scipy'). Using NumPy Gaussian PDF fallback.
+2026-10-10 21:27:11 [INFO] [RepositoriesModule]: [RepositoriesModule] Repositories package initialization completed.
+2026-10-10 21:27:11 [INFO] [DataModule]: [DataModule] Data package initialization completed.
+2026-10-10 21:27:11 [WARNING] [GroupMLAIAlgorithms]: scikit-learn is not available. Algorithms will run in robust statistical fallback mode.
+2026-10-10 21:27:11 [WARNING] [GroupMLAIAlgorithms]: LightGBM is not available. LightGBM algorithm will run in fallback mode.
+2026-10-10 21:27:11 [WARNING] [GroupMLAIAlgorithms]: CatBoost is not available. CatBoost algorithm will run in fallback mode.
+2026-10-10 21:27:11 [WARNING] [GroupPatternAlgorithms]: scikit-learn GaussianMixture is not available. Pattern algorithms will use statistical fallback modes.
+2026-10-10 21:27:11 [INFO] [AILearningModel]: PyTorch could not be initialized ([WinError 1114] DLL 초기화 루틴을 실행할 수 없습니다. Error loading "C:\tmp\torch\lib\c10.dll" or one of its dependencies.). Deep learning LSTM/GRU features will run in fallback statistical mode.
+2026-10-10 21:27:11 [WARNING] [AILearningModel]: PyTorch could not be initialized (unexpected torch bootstrap failure). Deep learning LSTM/GRU features will run in fallback statistical mode.
+2026-10-10 21:27:11 [INFO] [AlgorithmsPackage]: Initializing and registering all algorithm groups...
+2026-10-10 21:27:11 [INFO] [GroupStatisticsAlgorithms]: Registering statistics group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupStatisticsAlgorithms]: Statistics group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [GroupFrequencyAlgorithms]: Registering frequency group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupFrequencyAlgorithms]: Frequency group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [GroupMLAIAlgorithms]: Registering Unified ML & AI group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupMLAIAlgorithms]: Unified ML & AI group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [GroupPatternAlgorithms]: Registering pattern group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupPatternAlgorithms]: Pattern group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [GroupAdvancedAlgorithms]: Registering advanced group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupAdvancedAlgorithms]: Advanced group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [AlgorithmsPackage]: Successfully registered 435 class-based algorithms and 16 function-based algorithms (loaded groups: group_statistics, group_frequency, group_ml_ai, group_pattern, group_advanced).
+2026-10-10 21:27:11 [INFO] [GroupMLAIAlgorithms]: LightGBM native fit crashed with access violation; disabling LightGBM for this session and using time-series fallback.
+2026-10-10 21:27:11 [INFO] [GroupMLAIAlgorithms]: LightGBM native fit crashed with access violation; disabling LightGBM for this session and using time-series fallback.
+2026-10-10 21:27:11 [INFO] [AlgorithmsPackage]: Initializing and registering all algorithm groups...
+2026-10-10 21:27:11 [INFO] [GroupStatisticsAlgorithms]: Registering statistics group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupStatisticsAlgorithms]: Statistics group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [GroupFrequencyAlgorithms]: Registering frequency group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupFrequencyAlgorithms]: Frequency group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [GroupMLAIAlgorithms]: Registering Unified ML & AI group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupMLAIAlgorithms]: Unified ML & AI group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [GroupPatternAlgorithms]: Registering pattern group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupPatternAlgorithms]: Pattern group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [GroupAdvancedAlgorithms]: Registering advanced group algorithms...
+2026-10-10 21:27:11 [INFO] [GroupAdvancedAlgorithms]: Advanced group algorithms registered successfully.
+2026-10-10 21:27:11 [INFO] [AlgorithmsPackage]: Successfully registered 435 class-based algorithms and 16 function-based algorithms (loaded groups: group_statistics, group_frequency, group_ml_ai, group_pattern, group_advanced).
+2026-10-10 21:27:11 [INFO] [MarkovTransitionEngine]: Initializing MarkovTransitionEngine...
+2026-10-10 21:27:11 [INFO] [MarkovTransitionEngine]: Markov transition matrix successfully built and normalized.
+2026-10-10 21:27:11 [INFO] [MonteCarloValidator]: Initializing MonteCarloValidator...

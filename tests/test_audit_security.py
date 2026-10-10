@@ -2,6 +2,7 @@ import concurrent.futures
 import hashlib
 import hmac
 import json
+import logging
 
 from utils import audit_security
 from utils.audit_security import AuditTrailSecurity
@@ -33,6 +34,38 @@ def test_audit_secret_creation_is_atomic_for_concurrent_callers(tmp_path, monkey
 
     assert all(key == keys[0] for key in keys)
     assert secret_path.read_bytes() == keys[0]
+
+
+def test_audit_secret_generation_logs_info_outside_production(tmp_path, monkeypatch, caplog):
+    monkeypatch.delenv("LOTTO_AUDIT_SECRET_KEY", raising=False)
+    monkeypatch.delenv("LOTTO_ENV", raising=False)
+    monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("ENV", raising=False)
+    monkeypatch.delenv("PYTHON_ENV", raising=False)
+    monkeypatch.delenv("LOTTO_PRODUCTION", raising=False)
+    monkeypatch.setattr(audit_security, "project_root", str(tmp_path))
+
+    with caplog.at_level(logging.INFO, logger="AuditTrailSecurity"):
+        audit_security._load_audit_secret_key()
+
+    msg = "Generated a new local audit secret file. Set LOTTO_AUDIT_SECRET_KEY in production environments."
+    records = [record for record in caplog.records if msg in record.getMessage()]
+    assert records
+    assert all(record.levelname == "INFO" for record in records)
+
+
+def test_audit_secret_generation_logs_warning_in_production(tmp_path, monkeypatch, caplog):
+    monkeypatch.delenv("LOTTO_AUDIT_SECRET_KEY", raising=False)
+    monkeypatch.setenv("LOTTO_ENV", "production")
+    monkeypatch.setattr(audit_security, "project_root", str(tmp_path))
+
+    with caplog.at_level(logging.INFO, logger="AuditTrailSecurity"):
+        audit_security._load_audit_secret_key()
+
+    msg = "Generated a new local audit secret file. Set LOTTO_AUDIT_SECRET_KEY in production environments."
+    records = [record for record in caplog.records if msg in record.getMessage()]
+    assert records
+    assert all(record.levelname == "WARNING" for record in records)
 
 
 def test_signed_records_filter_numbers_to_lotto_range():
