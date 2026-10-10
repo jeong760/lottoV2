@@ -181,11 +181,14 @@ class AISystemWidget(QGroupBox):
         """Load latest metrics from stored ML state repository or DB"""
         try:
             from data.repositories.ml_model_repository import MLModelRepository
-            state = (
-                MLModelRepository.load_model_state("latest_weights_1_500")
-                or MLModelRepository.load_model_state("latest_weights")
-            )
-            if state and isinstance(state, dict):
+            state = None
+            for key in ("latest_weights_1_500", "latest_weights"):
+                candidate = MLModelRepository.load_model_state(key)
+                if isinstance(candidate, dict) and candidate:
+                    state = candidate
+                    break
+
+            if state:
                 trend = state.get("trend_score", 0.92)
                 score = trend * 100.0
                 ensemble = score - 2.5

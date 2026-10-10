@@ -642,31 +642,42 @@ def ai_smart_algorithm(db_data=None) -> list[int]:
     """Extracts numbers from persisted AI model state with weighted fallback logic."""
     try:
         state = None
+        neural_weights = {}
+        frequency_weights = {}
+        balanced_weights = {}
         for key in ("latest_weights_1_500", "latest_weights"):
-            state = MLModelRepository.load_model_state(key)
-            if isinstance(state, dict) and state:
+            candidate = MLModelRepository.load_model_state(key)
+            if not isinstance(candidate, dict) or not candidate:
+                continue
+
+            candidate_neural_weights = _to_numeric_weight_map(candidate.get("neural_weights", {}))
+            candidate_frequency_weights = _to_numeric_weight_map(candidate.get("frequency_distribution", {}))
+            bias_analysis = candidate.get("bias_analysis", {})
+            if not isinstance(bias_analysis, dict):
+                bias_analysis = {}
+            candidate_balanced_weights = _to_numeric_weight_map(bias_analysis.get("balanced_weights", {}))
+
+            if candidate_neural_weights or candidate_frequency_weights or candidate_balanced_weights:
+                state = candidate
+                neural_weights = candidate_neural_weights
+                frequency_weights = candidate_frequency_weights
+                balanced_weights = candidate_balanced_weights
                 break
 
         if isinstance(state, dict) and state:
-            neural_weights = _to_numeric_weight_map(state.get("neural_weights", {}))
-            frequency_weights = _to_numeric_weight_map(state.get("frequency_distribution", {}))
-            bias_analysis = state.get("bias_analysis", {}) if isinstance(state.get("bias_analysis"), dict) else {}
-            balanced_weights = _to_numeric_weight_map(bias_analysis.get("balanced_weights", {}))
+            candidate_pool = list(range(1, 46))
+            combined = []
+            for num in candidate_pool:
+                nw = float(neural_weights.get(num, 1.0))
+                bw = float(balanced_weights.get(num, 1.0))
+                fw = float(frequency_weights.get(num, 1.0))
+                score = (nw * 0.5) + (bw * 0.3) + (fw * 0.2)
+                combined.append(max(0.01, score))
 
-            if neural_weights or frequency_weights or balanced_weights:
-                candidate_pool = list(range(1, 46))
-                combined = []
-                for num in candidate_pool:
-                    nw = float(neural_weights.get(num, 1.0))
-                    bw = float(balanced_weights.get(num, 1.0))
-                    fw = float(frequency_weights.get(num, 1.0))
-                    score = (nw * 0.5) + (bw * 0.3) + (fw * 0.2)
-                    combined.append(max(0.01, score))
-
-                probs = np.array(combined, dtype=np.float64)
-                probs /= np.sum(probs) if np.sum(probs) > 0 else 1.0
-                selected = np.random.choice(candidate_pool, size=6, replace=False, p=probs)
-                return sorted([int(n) for n in selected])
+            probs = np.array(combined, dtype=np.float64)
+            probs /= np.sum(probs) if np.sum(probs) > 0 else 1.0
+            selected = np.random.choice(candidate_pool, size=6, replace=False, p=probs)
+            return sorted([int(n) for n in selected])
     except Exception as e:
         _log.warning(f"Failed to load repository AI model state for ALG-AI-01: {e}")
 

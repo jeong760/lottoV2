@@ -176,7 +176,7 @@ class LottoWorker(QThread):
                 return True
 
             # Keep fixed-number constraints feasible while reducing near-duplicate sets.
-            max_allowed_overlap = min(5, max(3, len(self.fixed_numbers)))
+            max_allowed_overlap = min(6, max(3, len(self.fixed_numbers)))
             candidate_set = set(candidate)
 
             for prev in accepted_sets:

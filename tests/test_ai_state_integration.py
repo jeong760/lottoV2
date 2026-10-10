@@ -12,6 +12,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 from core.algorithms import group_ml_ai
+from config import AUTO_AI_TRAIN_EPOCHS
 
 
 if "PyQt5.QtCore" not in sys.modules:
@@ -105,6 +106,34 @@ def test_ai_smart_algorithm_falls_back_to_secondary_repository_key(monkeypatch):
     assert float(captured["probs"][32]) > float(captured["probs"][0])
 
 
+def test_ai_smart_algorithm_skips_primary_state_without_usable_weight_maps(monkeypatch):
+    calls = []
+    state = _build_repository_state(boost_number=33)
+
+    def fake_load_model_state(key):
+        calls.append(key)
+        if key == "latest_weights_1_500":
+            return {"metadata": {"epoch": 10}, "matrices": []}
+        if key == "latest_weights":
+            return state
+        return None
+
+    monkeypatch.setattr(group_ml_ai.MLModelRepository, "load_model_state", staticmethod(fake_load_model_state))
+    monkeypatch.setattr(group_ml_ai.os.path, "exists", lambda *_: False)
+    monkeypatch.setattr(
+        group_ml_ai.np.random,
+        "choice",
+        lambda candidate_pool, size, replace, p: np.array([33, 1, 2, 3, 4, 5], dtype=np.int64),
+    )
+
+    assert group_ml_ai.ai_smart_algorithm() == [1, 2, 3, 4, 5, 33]
+    assert calls == ["latest_weights_1_500", "latest_weights"]
+
+
+def test_auto_ai_training_default_is_bounded():
+    assert AUTO_AI_TRAIN_EPOCHS == 50
+
+
 def test_lotto_worker_load_ai_weights_prefers_primary_repository_key(monkeypatch):
     calls = []
     primary_state = {"neural_weights": {"1": 1.2}}
@@ -193,3 +222,14 @@ def test_lotto_worker_diversity_gate_respects_fixed_number_overlap_floor():
         )
         is False
     )
+
+
+def test_lotto_worker_diversity_gate_allows_six_fixed_numbers():
+    fixed_numbers = [1, 2, 3, 4, 5, 6]
+    dummy_worker = types.SimpleNamespace(fixed_numbers=fixed_numbers)
+
+    assert lotto_worker.LottoWorker._passes_diversity_gate(
+        dummy_worker,
+        fixed_numbers,
+        [fixed_numbers],
+    ) is True
