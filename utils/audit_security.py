@@ -51,8 +51,7 @@ def _load_audit_secret_key() -> bytes:
         except Exception:
             pass
         _log.warning(
-            "Generated a new local audit secret at %s. Set LOTTO_AUDIT_SECRET_KEY in production environments.",
-            secret_path,
+            "Generated a new local audit secret file. Set LOTTO_AUDIT_SECRET_KEY in production environments."
         )
         return generated
     except Exception as e:
