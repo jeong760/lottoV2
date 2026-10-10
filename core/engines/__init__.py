@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/engines/__init__.py
 import sys
 import os

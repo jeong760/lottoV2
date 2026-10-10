@@ -1,6 +1,4 @@
-# -*- coding: utf-8 -*-
 """Shared reporting helpers for dashboard visualization and backtest reporting."""
-from __future__ import annotations
 
 from typing import Any, Dict, List
 
@@ -19,7 +17,7 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return int(default)
 
 
-def build_realtime_dashboard_payload(stats_payload: Dict[str, Any], hot_limit: int = 5) -> Dict[str, Any]:
+def build_realtime_dashboard_payload(stats_payload: dict[str, Any], hot_limit: int = 5) -> dict[str, Any]:
     """
     Normalizes comprehensive statistics payload into widget-friendly structure.
     """
@@ -32,7 +30,7 @@ def build_realtime_dashboard_payload(stats_payload: Dict[str, Any], hot_limit: i
     hot_source = phase_c.get("hot_numbers", [])
     cold_source = phase_c.get("cold_numbers", [])
 
-    hot_numbers: List[Dict[str, Any]] = []
+    hot_numbers: list[dict[str, Any]] = []
     if isinstance(hot_source, list) and hot_source:
         for row in hot_source[: max(1, int(hot_limit))]:
             if not isinstance(row, dict):
@@ -69,7 +67,7 @@ def build_realtime_dashboard_payload(stats_payload: Dict[str, Any], hot_limit: i
                     }
                 )
 
-    cold_numbers: List[Dict[str, Any]] = []
+    cold_numbers: list[dict[str, Any]] = []
     if isinstance(cold_source, list):
         for row in cold_source[:3]:
             if not isinstance(row, dict):
@@ -130,7 +128,7 @@ def build_realtime_dashboard_payload(stats_payload: Dict[str, Any], hot_limit: i
             ac_label = f"{avg_ac:.1f}"
             ac_sub = f"(Average : {avg_ac:.1f})"
 
-    trend_series: List[float] = []
+    trend_series: list[float] = []
     trends = phase_c.get("historical_trends", {})
     if isinstance(trends, dict):
         rising = trends.get("rising_numbers", [])
@@ -146,7 +144,7 @@ def build_realtime_dashboard_payload(stats_payload: Dict[str, Any], hot_limit: i
     if not trend_series:
         trend_series = [50.0, 45.0, 55.0, 35.0, 40.0, 25.0, 45.0, 50.0, 30.0, 20.0, 40.0, 55.0]
 
-    summary_lines: List[str] = []
+    summary_lines: list[str] = []
     if hot_numbers:
         summary_lines.append(
             "Hot: " + ", ".join(f"{item['number']}({item['rate_pct']:.1f}%)" for item in hot_numbers[:3])
@@ -168,7 +166,7 @@ def build_realtime_dashboard_payload(stats_payload: Dict[str, Any], hot_limit: i
     }
 
 
-def build_backtest_report_lines(result: Dict[str, Any]) -> List[str]:
+def build_backtest_report_lines(result: dict[str, Any]) -> list[str]:
     """
     Builds reusable text lines for backtest reporting.
     """
@@ -184,7 +182,7 @@ def build_backtest_report_lines(result: Dict[str, Any]) -> List[str]:
     algo_metrics = algo.get("metrics", {}) if isinstance(algo, dict) else {}
     rand_metrics = rand.get("metrics", {}) if isinstance(rand, dict) else {}
 
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("")
     lines.append("==================================================")
     lines.append(f" BACKTEST & ROI PERFORMANCE REPORT (Last {test_window} Draws)")
@@ -243,11 +241,11 @@ def build_backtest_report_lines(result: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def build_backtest_report_text(result: Dict[str, Any]) -> str:
+def build_backtest_report_text(result: dict[str, Any]) -> str:
     return "\n".join(build_backtest_report_lines(result))
 
 
-def _format_score_weight_profile(profile: Dict[str, Any]) -> str:
+def _format_score_weight_profile(profile: dict[str, Any]) -> str:
     if not isinstance(profile, dict) or not profile:
         return "-"
     ordered_keys = [
@@ -258,7 +256,7 @@ def _format_score_weight_profile(profile: Dict[str, Any]) -> str:
         "confidence_probability",
         "confidence_ensemble",
     ]
-    parts: List[str] = []
+    parts: list[str] = []
     for key in ordered_keys:
         if key in profile:
             parts.append(f"{key}={_safe_float(profile.get(key), 0.0):.4f}")
@@ -268,7 +266,7 @@ def _format_score_weight_profile(profile: Dict[str, Any]) -> str:
     return ", ".join(parts) if parts else "-"
 
 
-def build_generation_batch_report_lines(batch_summary: Dict[str, Any], sessions: List[Dict[str, Any]]) -> List[str]:
+def build_generation_batch_report_lines(batch_summary: dict[str, Any], sessions: list[dict[str, Any]]) -> list[str]:
     """
     Builds reusable text lines for generation batch explainability/session-comparison reporting.
     """
@@ -285,7 +283,7 @@ def build_generation_batch_report_lines(batch_summary: Dict[str, Any], sessions:
 
     algorithm_titles = batch_summary.get("algorithm_titles", [])
     if not isinstance(algorithm_titles, list) or not algorithm_titles:
-        discovered_titles: List[str] = []
+        discovered_titles: list[str] = []
         for session in sessions:
             if not isinstance(session, dict):
                 continue
@@ -310,7 +308,7 @@ def build_generation_batch_report_lines(batch_summary: Dict[str, Any], sessions:
                 score_profile = profile
                 break
 
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("")
     lines.append("==================================================")
     lines.append(" GENERATION BATCH EXPLAINABILITY REPORT")
@@ -331,7 +329,7 @@ def build_generation_batch_report_lines(batch_summary: Dict[str, Any], sessions:
     lines.append("")
     lines.append("[Session Comparison]")
 
-    normalized_sessions: List[Dict[str, Any]] = [s for s in sessions if isinstance(s, dict)]
+    normalized_sessions: list[dict[str, Any]] = [s for s in sessions if isinstance(s, dict)]
     normalized_sessions.sort(key=lambda s: str(s.get("timestamp") or ""))
     if not normalized_sessions:
         lines.append(" - No sessions found for this batch.")
@@ -360,5 +358,5 @@ def build_generation_batch_report_lines(batch_summary: Dict[str, Any], sessions:
     return lines
 
 
-def build_generation_batch_report_text(batch_summary: Dict[str, Any], sessions: List[Dict[str, Any]]) -> str:
+def build_generation_batch_report_text(batch_summary: dict[str, Any], sessions: list[dict[str, Any]]) -> str:
     return "\n".join(build_generation_batch_report_lines(batch_summary, sessions))

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/engines/monte_carlo_validator.py
 import logging
 import random
@@ -14,7 +13,7 @@ class MonteCarloValidator:
     sum distribution, and feature likelihood of generated lotto candidate sets.
     """
 
-    def __init__(self, historical_draws: List[List[int]] = None):
+    def __init__(self, historical_draws: list[list[int]] = None):
         _log.info("Initializing MonteCarloValidator...")
         self.historical_draws = historical_draws or []
         self.mean_sum = 138.5
@@ -22,7 +21,7 @@ class MonteCarloValidator:
         if self.historical_draws:
             self._recalculate_baseline()
 
-    def update_history(self, historical_draws: List[List[int]]):
+    def update_history(self, historical_draws: list[list[int]]):
         """Updates internal history and recalculates baseline statistical parameters safely."""
         self.historical_draws = historical_draws or []
         self._recalculate_baseline()
@@ -48,7 +47,7 @@ class MonteCarloValidator:
         except Exception as e:
             _log.warning(f"Error recalculating baseline in MonteCarloValidator: {e}", exc_info=True)
 
-    def evaluate_set_probability(self, candidate_set: List[int]) -> Dict[str, Any]:
+    def evaluate_set_probability(self, candidate_set: list[int]) -> dict[str, Any]:
         """
         Evaluates a candidate 6-number set using Monte Carlo probability scoring.
         Returns a dictionary containing validity flag and confidence score.

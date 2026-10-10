@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # config.py
 import sys
 import os
@@ -46,6 +45,9 @@ ML_MAX_ITERATIONS = 500000
 ML_TARGET_ACCURACY = 99.0
 ML_RECENT_DRAWS_LIMIT = 10000
 ML_CLUSTER_COUNT = 5
+AUTO_AI_TRAIN_EPOCHS = 50
+AUTO_AI_TRAIN_INTERVAL_HOURS = 4
+AUTO_AI_TRAIN_INTERVAL_MS = AUTO_AI_TRAIN_INTERVAL_HOURS * 60 * 60 * 1000
 
 
 # ==========================================

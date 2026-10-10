@@ -166,7 +166,7 @@ Since the filters are operating correctly, you can enjoy the simulation with com
 
 ### Prerequisites
 
-* Python 3.8+ (Python 3.10+ recommended)
+* Python 3.14+
 * PyQt5, Pandas, OpenPyXL, Psutil
 
 ### Installation & Execution
@@ -203,7 +203,7 @@ The execution sequence outlines the entire lifecycle of LottoMaster Pro, startin
   │     └── Verify and create local log directories and log files
   │
   ├── 2. Dependency & Module Validation
-  │     ├── Check availability of core libraries (PyQt5, psutil, pandas, tensorflow, etc.)
+  │     ├── Check availability of core libraries (PyQt5, psutil, pandas, torch, etc.)
   │     └── Catch and log critical exceptions if essential packages are missing
   │
   ├── 3. QApplication Initialization
@@ -412,7 +412,7 @@ lottoV2/
 
 ## 💻 Tech Stack
 
-* **Language**: Python 3.8+ (Python 3.10+ recommended)
+* **Language**: Python 3.14+
 * **GUI Framework**: PyQt5
 * **System Monitoring**: Psutil
 * **Data Processing & Export**: Pandas, OpenPyXL

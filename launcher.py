@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # launcher.py
 import sys
 import os
@@ -10,9 +9,6 @@ import atexit
 import importlib.util
 import warnings
 import traceback
-
-# Suppress TensorFlow C++ backend logs (Keep this to avoid C-level noise)
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
 # [Debug] Enable all warnings so they are fully visible for debugging purposes
 warnings.simplefilter('default')
@@ -57,7 +53,7 @@ def check_and_install_required_packages(python_executable):
     req_path = os.path.join(project_root, "requirements.txt")
     
     missing_core = False
-    for mod_name in ["PyQt5", "pandas", "requests", "sklearn", "statsmodels", "tensorflow", "openpyxl", "scipy"]:
+    for mod_name in ["PyQt5", "pandas", "requests", "sklearn", "statsmodels", "torch", "openpyxl", "scipy"]:
         if importlib.util.find_spec(mod_name) is None:
             missing_core = True
             break

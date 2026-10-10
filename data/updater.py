@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # data/updater.py
 import json
 import requests
@@ -33,7 +32,7 @@ def get_draw_no(draw: dict) -> int:
     return 0
 
 
-def update_lotto_data() -> Dict[str, Any]:
+def update_lotto_data() -> dict[str, Any]:
     """
     Fetches official lotto history records exclusively from remote JSON source.
     Updates SQLite DB directly with complete history records and returns synchronization metrics.

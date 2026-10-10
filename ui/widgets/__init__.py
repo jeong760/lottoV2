@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/__init__.py
 import logging
 import os

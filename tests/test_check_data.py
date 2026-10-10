@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # tests/test_load_history.py
 import sys
 import os

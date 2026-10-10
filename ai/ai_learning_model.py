@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ai/ai_learning_model.py
 import sys
 import os
@@ -9,7 +8,9 @@ import traceback
 import numpy as np
 import pandas as pd
 from datetime import datetime
-from typing import List, Dict, Any, Tuple, Optional, Callable
+from typing import List, Dict, Any, Tuple, Optional
+
+from collections.abc import Callable
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -20,14 +21,14 @@ if project_root not in sys.path:
 _log = logging.getLogger("AILearningModel")
 
 try:
-    import tensorflow as tf
-    from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import Input, LSTM, GRU, Dense, Dropout
-    from tensorflow.keras.callbacks import Callback
-    TF_AVAILABLE = True
+    import torch
+    import torch.nn as nn
+    import torch.optim as optim
+    from torch.utils.data import DataLoader, TensorDataset
+    TORCH_AVAILABLE = True
 except ImportError:
-    TF_AVAILABLE = False
-    _log.warning("TensorFlow is not available. Deep learning LSTM/GRU features will run in fallback statistical mode.")
+    TORCH_AVAILABLE = False
+    _log.warning("PyTorch is not available. Deep learning LSTM/GRU features will run in fallback statistical mode.")
 
 try:
     from statsmodels.tsa.arima.model import ARIMA
@@ -44,9 +45,9 @@ except ImportError:
     _log.warning("xgboost is not available. Tree-based weighting model will run in fallback statistical mode.")
 
 
-class TrainingProgressCallback(Callback if TF_AVAILABLE else object):
-    """Keras Callback to stream real-time epoch, loss, and metrics to external listeners safely."""
-    def __init__(self, progress_callback: Optional[Callable] = None, total_epochs: int = 20):
+class TrainingProgressCallback(object):
+    """Training callback to stream real-time epoch, loss, and metrics to external listeners safely."""
+    def __init__(self, progress_callback: Callable | None = None, total_epochs: int = 20):
         super().__init__()
         self.progress_callback = progress_callback
         self.total_epochs = total_epochs
@@ -61,6 +62,45 @@ class TrainingProgressCallback(Callback if TF_AVAILABLE else object):
                     self.progress_callback(current_epoch, self.total_epochs, loss, mae)
             except Exception as e:
                 _log.error(f"Error in training progress callback: {e}", exc_info=True)
+
+
+if TORCH_AVAILABLE:
+    class _TorchLSTMRegressor(nn.Module):
+        def __init__(self, input_size: int):
+            super().__init__()
+            self.lstm1 = nn.LSTM(input_size=input_size, hidden_size=64, batch_first=True)
+            self.dropout1 = nn.Dropout(0.2)
+            self.lstm2 = nn.LSTM(input_size=64, hidden_size=32, batch_first=True)
+            self.dropout2 = nn.Dropout(0.2)
+            self.fc1 = nn.Linear(32, 16)
+            self.fc2 = nn.Linear(16, 6)
+
+        def forward(self, x):
+            x, _ = self.lstm1(x)
+            x = self.dropout1(x)
+            x, _ = self.lstm2(x)
+            x = self.dropout2(x[:, -1, :])
+            x = torch.relu(self.fc1(x))
+            return self.fc2(x)
+
+
+    class _TorchGRURegressor(nn.Module):
+        def __init__(self, input_size: int):
+            super().__init__()
+            self.gru1 = nn.GRU(input_size=input_size, hidden_size=64, batch_first=True)
+            self.dropout1 = nn.Dropout(0.2)
+            self.gru2 = nn.GRU(input_size=64, hidden_size=32, batch_first=True)
+            self.dropout2 = nn.Dropout(0.2)
+            self.fc1 = nn.Linear(32, 16)
+            self.fc2 = nn.Linear(16, 6)
+
+        def forward(self, x):
+            x, _ = self.gru1(x)
+            x = self.dropout1(x)
+            x, _ = self.gru2(x)
+            x = self.dropout2(x[:, -1, :])
+            x = torch.relu(self.fc1(x))
+            return self.fc2(x)
 
 
 class LottoAILearningModel:
@@ -81,10 +121,12 @@ class LottoAILearningModel:
         self.transition_matrix = {}
         self.time_series_scores = {}
         self.xgb_weights = {}
+        self.neural_weights = {i: 1.0 for i in range(1, 46)}
         self.bias_analysis = {}
         self.frequency_distribution = {}
+        self.trained_models = []
 
-    def prepare_training_data(self, history_records: List[Any]) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    def prepare_training_data(self, history_records: list[Any]) -> tuple[np.ndarray | None, np.ndarray | None]:
         """Prepares historical drawing records into tensor features for sequence training safely."""
         try:
             if not history_records or len(history_records) < 10:
@@ -133,45 +175,200 @@ class LottoAILearningModel:
             _log.critical(f"[CRITICAL DEBUG] prepare_training_data error: {e}\n{traceback.format_exc()}")
             return None, None
 
-    def build_lstm_model(self, input_shape: Tuple[int, int]) -> Optional[Any]:
-        if not TF_AVAILABLE:
+    def build_lstm_model(self, input_shape: tuple[int, int]) -> Any | None:
+        if not TORCH_AVAILABLE:
             return None
         try:
-            model = Sequential([
-                Input(shape=input_shape),
-                LSTM(64, return_sequences=True),
-                Dropout(0.2),
-                LSTM(32, return_sequences=False),
-                Dropout(0.2),
-                Dense(16, activation='relu'),
-                Dense(6, activation='linear')
-            ])
-            model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-            return model
+            _, feature_size = input_shape
+            return _TorchLSTMRegressor(input_size=int(feature_size))
         except Exception as e:
             _log.error(f"Failed to build LSTM model: {e}", exc_info=True)
             return None
 
-    def build_gru_model(self, input_shape: Tuple[int, int]) -> Optional[Any]:
-        if not TF_AVAILABLE:
+    def build_gru_model(self, input_shape: tuple[int, int]) -> Any | None:
+        if not TORCH_AVAILABLE:
             return None
         try:
-            model = Sequential([
-                Input(shape=input_shape),
-                GRU(64, return_sequences=True),
-                Dropout(0.2),
-                GRU(32, return_sequences=False),
-                Dropout(0.2),
-                Dense(16, activation='relu'),
-                Dense(6, activation='linear')
-            ])
-            model.compile(optimizer='adam', loss='mse', metrics=['mae'])
-            return model
+            _, feature_size = input_shape
+            return _TorchGRURegressor(input_size=int(feature_size))
         except Exception as e:
             _log.error(f"Failed to build GRU model: {e}", exc_info=True)
             return None
 
-    def train_xgboost_model(self, history_records: List[Any]) -> Dict[int, float]:
+    def _train_torch_sequence_model(
+        self,
+        model: Any,
+        X: np.ndarray,
+        y: np.ndarray,
+        epochs: int,
+        batch_size: int,
+        callback: TrainingProgressCallback | None = None,
+    ) -> bool:
+        if not TORCH_AVAILABLE or model is None:
+            return False
+
+        try:
+            x_arr = np.asarray(X, dtype=np.float32)
+            y_arr = np.asarray(y, dtype=np.float32)
+            if x_arr.size == 0 or y_arr.size == 0:
+                return False
+
+            dataset = TensorDataset(
+                torch.tensor(x_arr, dtype=torch.float32),
+                torch.tensor(y_arr, dtype=torch.float32),
+            )
+            effective_batch = max(1, min(int(batch_size or 16), len(dataset)))
+            dataloader = DataLoader(dataset, batch_size=effective_batch, shuffle=True, drop_last=False)
+
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model = model.to(device)
+            model.train()
+
+            criterion = nn.MSELoss()
+            optimizer = optim.Adam(model.parameters(), lr=1e-3)
+            total_epochs = max(1, int(epochs or 1))
+
+            for epoch in range(total_epochs):
+                total_loss = 0.0
+                total_mae = 0.0
+                seen = 0
+
+                for x_batch, y_batch in dataloader:
+                    x_batch = x_batch.to(device)
+                    y_batch = y_batch.to(device)
+
+                    optimizer.zero_grad(set_to_none=True)
+                    preds = model(x_batch)
+                    loss = criterion(preds, y_batch)
+                    mae = torch.mean(torch.abs(preds - y_batch))
+                    loss.backward()
+                    optimizer.step()
+
+                    batch_n = int(x_batch.size(0))
+                    total_loss += float(loss.detach().cpu().item()) * batch_n
+                    total_mae += float(mae.detach().cpu().item()) * batch_n
+                    seen += batch_n
+
+                if callback is not None:
+                    callback.on_epoch_end(
+                        epoch,
+                        {
+                            "loss": total_loss / max(1, seen),
+                            "mae": total_mae / max(1, seen),
+                        },
+                    )
+
+            model.eval()
+            return True
+        except Exception as e:
+            _log.warning(f"PyTorch sequence model training failed: {e}", exc_info=True)
+            return False
+
+    def _prepare_recent_sequence_window(self, history_records: list[Any], window_size: int = 5) -> np.ndarray | None:
+        try:
+            if not history_records:
+                return None
+
+            sequences = []
+            for record in history_records:
+                nums = []
+                if isinstance(record, dict):
+                    nums = record.get("numbers", []) or record.get("draw", [])
+                    if not nums:
+                        nums = [record.get(f"drwtNo{i}") for i in range(1, 7)]
+                elif isinstance(record, (list, tuple)):
+                    nums = list(record)
+
+                valid_nums = []
+                for n in nums:
+                    try:
+                        iv = int(n)
+                        if 1 <= iv <= 45:
+                            valid_nums.append(iv)
+                    except (ValueError, TypeError):
+                        continue
+
+                if len(valid_nums) >= 6:
+                    normalized = [(n - self.scaler_mean) / self.scaler_std for n in sorted(valid_nums[:6])]
+                    sequences.append(normalized)
+
+            if len(sequences) < int(window_size):
+                return None
+
+            recent_window = np.array([sequences[-int(window_size):]], dtype=np.float32)
+            if recent_window.ndim != 3 or recent_window.shape[1] != int(window_size) or recent_window.shape[2] != 6:
+                return None
+            return recent_window
+        except Exception:
+            return None
+
+    def _predict_normalized_next_numbers(self, model: Any, sequence_window: np.ndarray | None) -> list[float]:
+        if not TORCH_AVAILABLE or model is None or sequence_window is None:
+            return []
+
+        try:
+            device = next(model.parameters()).device
+        except Exception:
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        try:
+            model = model.to(device)
+            model.eval()
+            with torch.no_grad():
+                input_tensor = torch.tensor(sequence_window, dtype=torch.float32, device=device)
+                preds = model(input_tensor)
+                pred_array = preds.detach().cpu().numpy().reshape(-1)
+            return [float(v) for v in pred_array[:6]]
+        except Exception as e:
+            _log.debug(f"Neural next-number prediction fallback triggered: {e}")
+            return []
+
+    def _build_neural_weight_map(self, history_records: list[Any]) -> dict[int, float]:
+        default_map = {i: 1.0 for i in range(1, 46)}
+        if not TORCH_AVAILABLE:
+            return default_map
+
+        try:
+            sequence_window = self._prepare_recent_sequence_window(history_records, window_size=5)
+            if sequence_window is None:
+                return default_map
+
+            predicted_centers = []
+            for model in (self.lstm_model, self.gru_model):
+                normalized_preds = self._predict_normalized_next_numbers(model, sequence_window)
+                if len(normalized_preds) != 6:
+                    continue
+                for pred in normalized_preds:
+                    denorm = (float(pred) * float(self.scaler_std)) + float(self.scaler_mean)
+                    clipped = max(1.0, min(45.0, denorm))
+                    predicted_centers.append(clipped)
+
+            if not predicted_centers:
+                return default_map
+
+            sigma = 3.0
+            raw_scores = {}
+            for num in range(1, 46):
+                closeness = 0.0
+                for center in predicted_centers:
+                    closeness += float(np.exp(-((float(num) - center) ** 2) / (2.0 * sigma * sigma)))
+                raw_scores[num] = max(0.01, float(closeness))
+
+            min_score = min(raw_scores.values()) if raw_scores else 0.0
+            max_score = max(raw_scores.values()) if raw_scores else 1.0
+            score_gap = max_score - min_score
+            if score_gap <= 0:
+                return default_map
+
+            return {
+                num: round(0.1 + ((score - min_score) / score_gap) * 0.9, 4)
+                for num, score in raw_scores.items()
+            }
+        except Exception as e:
+            _log.warning(f"Failed to build neural weight map: {e}", exc_info=True)
+            return default_map
+
+    def train_xgboost_model(self, history_records: list[Any]) -> dict[int, float]:
         default_weights = {i: 1.0 for i in range(1, 46)}
         if not XGB_AVAILABLE or not history_records or len(history_records) < 30:
             return default_weights
@@ -253,7 +450,7 @@ class LottoAILearningModel:
             _log.warning(f"Failed to train XGBoost model: {e}", exc_info=True)
             return default_weights
 
-    def _calculate_co_occurrence(self, history_records: List[Any]) -> Dict[Tuple[int, int], int]:
+    def _calculate_co_occurrence(self, history_records: list[Any]) -> dict[tuple[int, int], int]:
         co_occurrence = {}
         try:
             for record in history_records:
@@ -270,7 +467,7 @@ class LottoAILearningModel:
             _log.warning(f"Error in _calculate_co_occurrence: {e}", exc_info=True)
         return co_occurrence
 
-    def _calculate_transition_matrix(self, history_records: List[Any]) -> Dict[int, Dict[int, float]]:
+    def _calculate_transition_matrix(self, history_records: list[Any]) -> dict[int, dict[int, float]]:
         transitions = {i: {j: 0 for j in range(1, 46)} for i in range(1, 46)}
         try:
             sorted_records = sorted(history_records, key=lambda x: int(x.get("draw_no", x.get("drwNo", 0))) if isinstance(x, dict) else 0)
@@ -317,7 +514,7 @@ class LottoAILearningModel:
         except Exception:
             return float(np.mean(series_data))
 
-    def _extract_time_series_features_and_scores(self, history_records: List[Any]) -> Dict[int, float]:
+    def _extract_time_series_features_and_scores(self, history_records: list[Any]) -> dict[int, float]:
         default_scores = {i: 1.0 for i in range(1, 46)}
         if not history_records or len(history_records) < 20:
             return default_scores
@@ -365,7 +562,7 @@ class LottoAILearningModel:
             _log.warning(f"Error in _extract_time_series_features_and_scores: {e}", exc_info=True)
             return default_scores
 
-    def _analyze_gambler_fallacy_and_bias(self, history_records: List[Any]) -> Dict[str, Any]:
+    def _analyze_gambler_fallacy_and_bias(self, history_records: list[Any]) -> dict[str, Any]:
         last_seen = {i: -1 for i in range(1, 46)}
         frequency = {i: 0 for i in range(1, 46)}
 
@@ -376,7 +573,7 @@ class LottoAILearningModel:
                 if not nums and isinstance(record, dict):
                     nums = [record.get(f"drwtNo{i}") for i in range(1, 7)]
                 
-                valid_nums = set(int(n) for n in nums if n is not None and str(n).isdigit() and 1 <= int(n) <= 45)
+                valid_nums = {int(n) for n in nums if n is not None and str(n).isdigit() and 1 <= int(n) <= 45}
                 for n in valid_nums:
                     frequency[n] += 1
                     last_seen[n] = idx
@@ -404,7 +601,7 @@ class LottoAILearningModel:
             "frequency": frequency
         }
 
-    def train_model(self, history_records: List[Any], epochs: int = 20, batch_size: int = 16, progress_callback: Optional[Callable] = None) -> Dict[str, Any]:
+    def train_model(self, history_records: list[Any], epochs: int = 20, batch_size: int = 16, progress_callback: Callable | None = None) -> dict[str, Any]:
         try:
             if history_records:
                 self.co_occurrence_matrix = self._calculate_co_occurrence(history_records)
@@ -419,10 +616,13 @@ class LottoAILearningModel:
                 self.transition_matrix = {}
                 self.time_series_scores = {i: 1.0 for i in range(1, 46)}
                 self.xgb_weights = {i: 1.0 for i in range(1, 46)}
+                self.neural_weights = {i: 1.0 for i in range(1, 46)}
                 self.bias_analysis = {"current_gaps": {}, "balanced_weights": {i: 1.0 for i in range(1, 46)}}
 
-            if not TF_AVAILABLE:
+            if not TORCH_AVAILABLE:
                 self.is_trained = True
+                self.trained_models = []
+                self.neural_weights = {i: 1.0 for i in range(1, 46)}
                 return {"status": "Fallback Statistical & ML Mode Active", "trained": False}
 
             X, y = self.prepare_training_data(history_records)
@@ -432,29 +632,34 @@ class LottoAILearningModel:
 
             input_shape = (X.shape[1], X.shape[2])
             cb = TrainingProgressCallback(progress_callback=progress_callback, total_epochs=epochs)
+            trained_models = []
 
             self.lstm_model = self.build_lstm_model(input_shape)
             if self.lstm_model:
                 try:
-                    self.lstm_model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0, callbacks=[cb])
+                    if self._train_torch_sequence_model(self.lstm_model, X, y, epochs=epochs, batch_size=batch_size, callback=cb):
+                        trained_models.append("LSTM")
                 except Exception as ex:
                     _log.warning(f"LSTM fitting warning: {ex}", exc_info=True)
 
             self.gru_model = self.build_gru_model(input_shape)
             if self.gru_model:
                 try:
-                    self.gru_model.fit(X, y, epochs=epochs, batch_size=batch_size, verbose=0, callbacks=[cb])
+                    if self._train_torch_sequence_model(self.gru_model, X, y, epochs=epochs, batch_size=batch_size, callback=cb):
+                        trained_models.append("GRU")
                 except Exception as ex:
                     _log.warning(f"GRU fitting warning: {ex}", exc_info=True)
 
+            self.trained_models = list(trained_models)
+            self.neural_weights = self._build_neural_weight_map(history_records)
             self.is_trained = True
-            return {"status": "Success", "epochs": epochs, "trained": True, "models": ["LSTM", "GRU", "ARIMA", "XGBoost"]}
+            return {"status": "Success", "epochs": epochs, "trained": True, "models": trained_models + ["ARIMA", "XGBoost"]}
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] train_model error: {e}\n{traceback.format_exc()}")
             self.is_trained = True
             return {"status": f"Error: {str(e)}", "trained": False}
 
-    def get_model_state(self) -> Dict[str, Any]:
+    def get_model_state(self) -> dict[str, Any]:
         try:
             safe_co_occurrence = {
                 f"{k[0]},{k[1]}": v for k, v in self.co_occurrence_matrix.items()
@@ -462,10 +667,12 @@ class LottoAILearningModel:
 
             return {
                 "lstm_trained": self.is_trained,
+                "trained_models": list(self.trained_models),
                 "co_occurrence_matrix": safe_co_occurrence,
                 "transition_matrix": self.transition_matrix,
                 "time_series_scores": self.time_series_scores,
                 "xgb_weights": self.xgb_weights,
+                "neural_weights": self.neural_weights,
                 "bias_analysis": self.bias_analysis,
                 "frequency_distribution": self.frequency_distribution,
                 "trend_score": 0.96 if self.is_trained else 0.50,
@@ -475,7 +682,7 @@ class LottoAILearningModel:
             _log.warning(f"Error in get_model_state: {e}", exc_info=True)
             return {"lstm_trained": False}
 
-    def predict_optimized_set(self, frequency_weights: Optional[Dict[int, float]] = None) -> List[int]:
+    def predict_optimized_set(self, frequency_weights: dict[int, float] | None = None) -> list[int]:
         candidate_pool = list(range(1, 46))
         try:
             weights_map = frequency_weights
@@ -487,7 +694,8 @@ class LottoAILearningModel:
                 base_w = float(weights_map.get(i, 1.0)) if weights_map else 1.0
                 ts_w = float(self.time_series_scores.get(i, 1.0))
                 xgb_w = float(self.xgb_weights.get(i, 1.0))
-                combined_w = base_w * 0.3 + ts_w * 0.3 + xgb_w * 0.4
+                neural_w = float(self.neural_weights.get(i, 1.0))
+                combined_w = base_w * 0.25 + ts_w * 0.25 + xgb_w * 0.30 + neural_w * 0.20
                 weights.append(max(0.1, combined_w))
 
             total_w = sum(weights)
@@ -532,7 +740,7 @@ class LottoAILearningModel:
                 if max_same_end_digit >= 3: 
                     continue
 
-                zones = set((n - 1) // 10 for n in optimized_set)
+                zones = {(n - 1) // 10 for n in optimized_set}
                 if len(zones) < 3: 
                     continue
 

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os
 import sys
 import json
@@ -510,3 +509,37 @@ def test_generation_history_fast_lookup_helpers(monkeypatch, tmp_path):
     fallback_single = LottoDBHelper.get_generation_sessions_by_batch_id(f"session-{target_id}")
     assert len(fallback_single) == 1
     assert int(fallback_single[0].get("id", 0) or 0) == target_id
+
+
+def test_save_generation_history_handles_metadata_json_encoder_edge_case(monkeypatch, tmp_path):
+    tmp_db_path = tmp_path / "phase_l_generation_history_encoder_edge_case.db"
+    monkeypatch.setattr(
+        LottoDBHelper,
+        "_get_db_path",
+        staticmethod(lambda: str(tmp_db_path)),
+    )
+
+    original_dumps = json.dumps
+
+    def flaky_dumps(obj, *args, **kwargs):
+        if isinstance(obj, dict) and kwargs.get("default") is str and "indent" not in kwargs:
+            raise TypeError("can't multiply sequence by non-int of type 'NoneType'")
+        return original_dumps(obj, *args, **kwargs)
+
+    monkeypatch.setattr("data.lotto_db_helper.json.dumps", flaky_dumps)
+
+    LottoDBHelper.save_generation_history(
+        set_count=1,
+        generated_sets=[[7, 12, 18, 24, 36, 41, 5]],
+        metadata={
+            "algorithm_id": "encoder_edge_case",
+            "algorithm_title": "Encoder Edge Case",
+            "generation_batch_id": "phase-l-encoder-edge",
+        },
+    )
+
+    sessions = LottoDBHelper.load_generation_history()
+    assert len(sessions) == 1
+    metadata = sessions[0].get("metadata", {})
+    assert metadata.get("algorithm_title") == "Encoder Edge Case"
+    assert metadata.get("generation_batch_id") == "phase-l-encoder-edge"

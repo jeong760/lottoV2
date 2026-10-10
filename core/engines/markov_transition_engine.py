@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/engines/markov_transition_engine.py
 import logging
 import numpy as np
@@ -13,14 +12,14 @@ class MarkovTransitionEngine:
     Markov Chain modeling to bias number generation toward historically probable state shifts.
     """
 
-    def __init__(self, historical_draws: List[List[int]] = None):
+    def __init__(self, historical_draws: list[list[int]] = None):
         _log.info("Initializing MarkovTransitionEngine...")
         self.historical_draws = historical_draws or []
         self.transition_matrix = np.zeros((46, 46), dtype=np.float64)
         if self.historical_draws:
             self._build_transition_matrix()
 
-    def update_history(self, historical_draws: List[List[int]]):
+    def update_history(self, historical_draws: list[list[int]]):
         """Updates internal historical draws and rebuilds the transition matrix safely."""
         self.historical_draws = historical_draws or []
         self._build_transition_matrix()
@@ -66,7 +65,7 @@ class MarkovTransitionEngine:
         except Exception as e:
             _log.error(f"Error building Markov transition matrix: {e}", exc_info=True)
 
-    def sample_markov_biased_numbers(self, count: int, reference_draw: List[int] = None) -> List[int]:
+    def sample_markov_biased_numbers(self, count: int, reference_draw: list[int] = None) -> list[int]:
         """Samples numbers based on transition probabilities from a reference draw with safety guards."""
         try:
             if not reference_draw and self.historical_draws:

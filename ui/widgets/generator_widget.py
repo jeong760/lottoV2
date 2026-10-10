@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/generator_widget.py
 import sys
 import os

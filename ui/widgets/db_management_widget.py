@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/db_management_widget.py
 import os
 import sys

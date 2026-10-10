@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/ai_engine.py
 import sys
 import os
@@ -15,7 +14,9 @@ if project_root not in sys.path:
 
 _log = logging.getLogger("AIEngine")
 
-from typing import Dict, Any, List, Optional, Tuple, Callable
+from typing import Dict, Any, List, Optional, Tuple
+
+from collections.abc import Callable
 from data.repositories.lotto_repository import LottoRepository
 from data.repositories.ml_model_repository import MLModelRepository
 from core.engines.statistics_engine import StatisticsEngine
@@ -40,7 +41,7 @@ class AIEngine:
     _lock = threading.RLock()
 
     @staticmethod
-    def _apply_temperature_scaling(probabilities: List[float], temperature: float = 1.2) -> np.ndarray:
+    def _apply_temperature_scaling(probabilities: list[float], temperature: float = 1.2) -> np.ndarray:
         try:
             preds = np.asarray(probabilities, dtype=np.float64)
             preds = np.clip(preds, 1e-8, 1.0)
@@ -52,7 +53,7 @@ class AIEngine:
             return np.ones(len(probabilities), dtype=np.float64) / max(1, len(probabilities))
 
     @staticmethod
-    def run_startup_pipeline(max_iterations: int = ML_MAX_ITERATIONS, target_accuracy: float = ML_TARGET_ACCURACY, progress_callback: Optional[Callable] = None) -> Optional[Dict[str, Any]]:
+    def run_startup_pipeline(max_iterations: int = ML_MAX_ITERATIONS, target_accuracy: float = ML_TARGET_ACCURACY, progress_callback: Callable | None = None) -> dict[str, Any] | None:
         """Executes the comprehensive training pipeline combining ML models, stats, neural network models, and ensemble voting safely."""
         with AIEngine._lock:
             print(f"🚀 [AIEngine] Starting unified AI & ML training pipeline (Target Accuracy: {target_accuracy}%)")
@@ -158,7 +159,7 @@ class AIEngine:
             }
 
     @staticmethod
-    def _generate_by_kmeans(all_draws: List[Dict[str, Any]]) -> List[int]:
+    def _generate_by_kmeans(all_draws: list[dict[str, Any]]) -> list[int]:
         if not SKLEARN_AVAILABLE or not all_draws or len(all_draws) < 30:
             return sorted(random.sample(range(1, 46), 6))
 
@@ -203,7 +204,7 @@ class AIEngine:
         return sorted(random.sample(range(1, 46), 6))
 
     @staticmethod
-    def _generate_by_random_forest(all_draws: List[Dict[str, Any]]) -> List[int]:
+    def _generate_by_random_forest(all_draws: list[dict[str, Any]]) -> list[int]:
         if not SKLEARN_AVAILABLE or not all_draws or len(all_draws) < 50:
             return sorted(random.sample(range(1, 46), 6))
 
@@ -256,8 +257,8 @@ class AIEngine:
         return sorted(random.sample(range(1, 46), 6))
 
     @staticmethod
-    def _evaluate_with_statistics(predicted_nums: List[int], all_draws: List[Dict[str, Any]], stats: Dict[str, Any]) -> Dict[str, Any]:
-        pred_set = set(int(n) for n in predicted_nums)
+    def _evaluate_with_statistics(predicted_nums: list[int], all_draws: list[dict[str, Any]], stats: dict[str, Any]) -> dict[str, Any]:
+        pred_set = {int(n) for n in predicted_nums}
         match_counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}
         
         for draw in all_draws:
@@ -298,7 +299,7 @@ class AIEngine:
         }
 
     @staticmethod
-    def get_latest_audit_report() -> Dict[str, Any]:
+    def get_latest_audit_report() -> dict[str, Any]:
         with AIEngine._lock:
             try:
                 cached_model = MLModelRepository.load_model_state("latest_ml_report")

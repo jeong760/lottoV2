@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/controllers/simulation_controller.py
 import logging
 import random

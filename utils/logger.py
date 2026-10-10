@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # utils/logger.py
 import sys
 import os

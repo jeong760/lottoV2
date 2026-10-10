@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # data/database.py
 import sqlite3
 import os
@@ -6,7 +5,7 @@ import sys
 import logging
 import threading
 from contextlib import contextmanager
-from typing import Generator
+from collections.abc import Generator
 
 # Ensure project root is in sys.path and initialize centralized logging
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -74,7 +73,7 @@ def get_db_connection() -> sqlite3.Connection:
 
 
 @contextmanager
-def get_db_cursor() -> Generator[sqlite3.Cursor, None, None]:
+def get_db_cursor() -> Generator[sqlite3.Cursor]:
     """
     Context manager that provides a database cursor within a managed transaction block.
     Automatically commits on success or rolls back on exception, ensuring thread safety.

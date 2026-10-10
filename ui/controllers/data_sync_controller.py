@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/controllers/data_sync_controller.py
 import logging
 import psutil
@@ -8,6 +7,11 @@ from data.lotto_db_helper import LottoDBHelper
 from data.repositories.lotto_repository import LottoRepository
 from workers.ai_train_worker import AITrainWorker
 from core.engines.statistics_engine import StatisticsEngine
+from config import (
+    AUTO_AI_TRAIN_EPOCHS,
+    AUTO_AI_TRAIN_INTERVAL_HOURS,
+    AUTO_AI_TRAIN_INTERVAL_MS,
+)
 
 _log = logging.getLogger("DataSyncController")
 
@@ -79,10 +83,10 @@ class DataSyncController:
         self.main_window = main_window
         self.ai_worker = None
 
-        # AI training background task timer (every 30 minutes)
+        # AI training background task timer (every 4 hours)
         self.ai_train_timer = QTimer(main_window)
         self.ai_train_timer.timeout.connect(self.init_auto_ai_training)
-        self.ai_train_timer.start(30 * 60 * 1000)
+        self.ai_train_timer.start(AUTO_AI_TRAIN_INTERVAL_MS)
 
     def init_auto_data_update(self):
         """Load local lotto records and synchronize all analytical widgets."""
@@ -179,13 +183,16 @@ class DataSyncController:
             _log.info(system_telemetry)
 
             if hasattr(self.main_window, 'live_console_widget') and self.main_window.live_console_widget:
-                self.main_window.live_console_widget.log_message("AI Model: Running continuous background 50-epoch auto-training with Dynamic Ensemble update...")
+                self.main_window.live_console_widget.log_message(
+                    f"AI Model: Running continuous background {AUTO_AI_TRAIN_EPOCHS:,}-epoch auto-training every "
+                    f"{AUTO_AI_TRAIN_INTERVAL_HOURS} hours with Dynamic Ensemble update..."
+                )
                 self.main_window.live_console_widget.log_message(system_telemetry)
             
             if self.ai_worker is not None and self.ai_worker.isRunning():
                 return
 
-            self.ai_worker = AITrainWorker(total_epochs=50)
+            self.ai_worker = AITrainWorker(total_epochs=AUTO_AI_TRAIN_EPOCHS)
             self.ai_worker.progress_signal.connect(self.on_ai_training_progress)
             self.ai_worker.finished_signal.connect(self.on_ai_training_finished)
             self.ai_worker.start()
@@ -214,7 +221,10 @@ class DataSyncController:
         """Safely handle AI background training completion signal and clean up thread resources."""
         try:
             if result and isinstance(result, dict) and result.get("status") == "Success":
-                checkpoint_msg = "AI Model: Continuous background auto-training (50 epochs) & Dynamic Ensemble re-weighting finished successfully."
+                checkpoint_msg = (
+                    f"AI Model: Continuous background auto-training ({AUTO_AI_TRAIN_EPOCHS:,} epochs) "
+                    f"& Dynamic Ensemble re-weighting finished successfully."
+                )
                 if hasattr(self.main_window, 'live_console_widget') and self.main_window.live_console_widget:
                     self.main_window.live_console_widget.log_message(checkpoint_msg)
                 _log.info(checkpoint_msg)

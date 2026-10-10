@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/algorithm_hub.py
 import sys
 import os
@@ -16,6 +15,7 @@ from core.generation_schema import (
     derive_score_weights_from_history,
     resolve_total_algorithms_active,
 )
+from core.quality_gate import calculate_ac_value as shared_calculate_ac_value, passes_quality_gate
 
 # Ensure project root is in sys.path
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -28,6 +28,18 @@ _log = logging.getLogger("AlgorithmHub")
 
 from data.repositories.lotto_repository import LottoRepository
 from core.lotto_evaluator import LottoEvaluator
+
+
+class QualityGate:
+    """Backward-compatible quality gate adapter kept for legacy tests/imports."""
+
+    def evaluate(self, numbers: list[int]) -> tuple[bool, dict[str, int]]:
+        cleaned = sorted({int(n) for n in numbers if 1 <= int(n) <= 45})
+        total_sum = int(sum(cleaned))
+        odd_count = int(sum(1 for n in cleaned if n % 2 != 0))
+        ac_value = int(shared_calculate_ac_value(cleaned))
+        passed = bool(passes_quality_gate(cleaned, strict=True))
+        return passed, {"sum": total_sum, "odd_count": odd_count, "ac_value": ac_value}
 
 
 class AlgorithmHub:
@@ -96,7 +108,7 @@ class AlgorithmHub:
             except Exception as e:
                 _log.warning(f"Exception occurred while linking DB statistics: {e}", exc_info=True)
 
-    def _get_latest_draw_numbers(self) -> List[int]:
+    def _get_latest_draw_numbers(self) -> list[int]:
         """Retrieves the numbers of the most recent official draw for overlap penalty checking safely."""
         try:
             all_draws = LottoRepository.get_all_draws()
@@ -117,7 +129,7 @@ class AlgorithmHub:
             _log.warning(f"Failed to fetch latest draw numbers for overlap constraint: {e}", exc_info=True)
         return []
 
-    def _get_dynamic_algorithm_weights(self) -> Dict[str, float]:
+    def _get_dynamic_algorithm_weights(self) -> dict[str, float]:
         """
         [Optimization A: Dynamic Algorithm Re-Weighting Feedback Loop]
         Runs a lightweight backtest simulation via LottoEvaluator on recent draws safely.
@@ -157,7 +169,7 @@ class AlgorithmHub:
         except Exception:
             return 7
 
-    def _score_candidate_set(self, s_nums: List[int]) -> float:
+    def _score_candidate_set(self, s_nums: list[int]) -> float:
         """
         [Optimization C: Multi-Tier Ensemble Scoring]
         Assigns a Quality Score (0 to 100) to each candidate set safely.
@@ -191,14 +203,14 @@ class AlgorithmHub:
         except Exception:
             return 50.0
 
-    def _apply_independence_and_overlap_filters(self, generated_sets: List[List[int]], fixed_numbers: List[int], excluded_numbers: List[int]) -> List[List[int]]:
+    def _apply_independence_and_overlap_filters(self, generated_sets: list[list[int]], fixed_numbers: list[int], excluded_numbers: list[int]) -> list[list[int]]:
         filtered_sets = []
         try:
             latest_draw_nums = self._get_latest_draw_numbers()
             latest_set = set(latest_draw_nums) if latest_draw_nums else set()
 
-            fixed_set = set(int(f) for f in (fixed_numbers or []))
-            excluded_set = set(int(e) for e in (excluded_numbers or []))
+            fixed_set = {int(f) for f in (fixed_numbers or [])}
+            excluded_set = {int(e) for e in (excluded_numbers or [])}
 
             for s in generated_sets:
                 if not s or len(s) < 6:
@@ -229,11 +241,11 @@ class AlgorithmHub:
             _log.warning(f"Error in _apply_independence_and_overlap_filters: {e}", exc_info=True)
         return filtered_sets
 
-    def _evolve_candidate_sets(self, initial_pool: List[List[int]], fixed_numbers: List[int], excluded_numbers: List[int], target_count: int) -> List[List[int]]:
+    def _evolve_candidate_sets(self, initial_pool: list[list[int]], fixed_numbers: list[int], excluded_numbers: list[int], target_count: int) -> list[list[int]]:
         try:
             population = [list(s) for s in initial_pool]
             fixed_list = [int(n) for n in (fixed_numbers or [])]
-            excluded_set = set(int(n) for n in (excluded_numbers or []))
+            excluded_set = {int(n) for n in (excluded_numbers or [])}
             candidate_pool = [n for n in range(1, 46) if n not in excluded_set and n not in fixed_list]
             
             if not population:
@@ -290,7 +302,7 @@ class AlgorithmHub:
             _log.warning(f"Error in _evolve_candidate_sets: {e}", exc_info=True)
             return initial_pool
 
-    def _diversify_sets_with_kmeans(self, candidate_pool: List[List[int]], target_count: int) -> List[List[int]]:
+    def _diversify_sets_with_kmeans(self, candidate_pool: list[list[int]], target_count: int) -> list[list[int]]:
         if len(candidate_pool) <= target_count:
             return candidate_pool
 
@@ -363,7 +375,7 @@ class AlgorithmHub:
         fixed_numbers: list = None,
         excluded_numbers: list = None,
         selected_algorithm_id: str = "ensemble_auto",
-    ) -> Tuple[List[List[int]], List[int], Dict[str, Any], Dict[str, Any]]:
+    ) -> tuple[list[list[int]], list[int], dict[str, Any], dict[str, Any]]:
         try:
             target_count = int(set_count)
             resolved_algorithm_id = resolve_algorithm_mode_id(selected_algorithm_id)
@@ -492,7 +504,7 @@ class AlgorithmHub:
             )
             return fallback_sets, [1, 2, 4, 8, 15, 20], fallback_stats, fallback_metadata
 
-    def get_audit_report(self) -> Dict[str, Any]:
+    def get_audit_report(self) -> dict[str, Any]:
         if self.engine and hasattr(self.engine, "build_audit_snapshot"):
             return self.engine.build_audit_snapshot()
         return {

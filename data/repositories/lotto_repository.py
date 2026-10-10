@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # data/repositories/lotto_repository.py
 import sqlite3
 import os
@@ -169,7 +168,7 @@ class LottoRepository:
                     conn.close()
 
     @classmethod
-    def get_all_draws(cls) -> List[Dict[str, Any]]:
+    def get_all_draws(cls) -> list[dict[str, Any]]:
         cls.init_table()
         with cls._lock:
             conn = None
@@ -188,11 +187,11 @@ class LottoRepository:
                     conn.close()
 
     @classmethod
-    def save_draw(cls, draw_dict: Dict[str, Any]):
+    def save_draw(cls, draw_dict: dict[str, Any]):
         cls.save_draws_batch([draw_dict])
 
     @classmethod
-    def save_draws_batch(cls, draw_dicts: List[Dict[str, Any]]):
+    def save_draws_batch(cls, draw_dicts: list[dict[str, Any]]):
         if not draw_dicts:
             return
 
@@ -393,7 +392,7 @@ class LottoRepository:
                     conn.close()
 
     @classmethod
-    def get_generation_history(cls) -> List[Dict[str, Any]]:
+    def get_generation_history(cls) -> list[dict[str, Any]]:
         cls.init_table()
         with cls._lock:
             conn = None

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # data/repositories/ml_model_repository.py
 import sqlite3
 import os
@@ -116,7 +115,7 @@ class MLModelRepository:
             return data
 
     @classmethod
-    def save_model_state(cls, key: str, model_type: str, state_dict: Dict[str, Any]) -> bool:
+    def save_model_state(cls, key: str, model_type: str, state_dict: dict[str, Any]) -> bool:
         """Saves or updates a machine learning model state dictionary in SQLite DB safely without locking."""
         cls._init_db()
         with cls._lock:
@@ -169,7 +168,7 @@ class MLModelRepository:
                         pass
 
     @classmethod
-    def load_model_state(cls, key: str = "default") -> Optional[Dict[str, Any]]:
+    def load_model_state(cls, key: str = "default") -> dict[str, Any] | None:
         cls._init_db()
         with cls._lock:
             conn = None
@@ -193,7 +192,7 @@ class MLModelRepository:
                         pass
 
     @classmethod
-    def get_latest_weights_blob(cls) -> Optional[bytes]:
+    def get_latest_weights_blob(cls) -> bytes | None:
         cls._init_db()
         with cls._lock:
             conn = None
@@ -217,7 +216,7 @@ class MLModelRepository:
                         pass
 
     @classmethod
-    def get_all_model_keys(cls) -> List[Dict[str, str]]:
+    def get_all_model_keys(cls) -> list[dict[str, str]]:
         cls._init_db()
         with cls._lock:
             conn = None

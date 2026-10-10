@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # utils/audit_security.py
 import sys
 import os
@@ -40,7 +39,7 @@ class AuditTrailSecurity:
         return str(o)
 
     @classmethod
-    def generate_hash(cls, data_dict: Dict[str, Any], use_hmac: bool = True) -> str:
+    def generate_hash(cls, data_dict: dict[str, Any], use_hmac: bool = True) -> str:
         """
         Converts given data into a deterministic JSON string format 
         and creates a SHA-256 / HMAC-SHA256 signature that changes completely if modified.
@@ -68,10 +67,10 @@ class AuditTrailSecurity:
     @classmethod
     def create_signed_record(
         cls, 
-        numbers: Union[List[int], tuple], 
-        metadata: Optional[Dict[str, Any]] = None,
-        ensemble_contributions: Optional[List[Dict[str, Any]]] = None
-    ) -> Dict[str, Any]:
+        numbers: list[int] | tuple, 
+        metadata: dict[str, Any] | None = None,
+        ensemble_contributions: list[dict[str, Any]] | None = None
+    ) -> dict[str, Any]:
         """
         Bundles generated lotto number sets with metadata and multi-algorithm ensemble 
         contributions to issue a secure record certificate containing a tamper-proof digital signature.
@@ -95,7 +94,7 @@ class AuditTrailSecurity:
         return record
 
     @classmethod
-    def verify_record(cls, record: Dict[str, Any]) -> bool:
+    def verify_record(cls, record: dict[str, Any]) -> bool:
         """
         Strictly verifies via signature whether recorded data has been corrupted 
         or maliciously manipulated during database or file loading.

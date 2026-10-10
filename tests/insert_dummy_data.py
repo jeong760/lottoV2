@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # tests/test_db_cleanup.py
 import sys
 import os

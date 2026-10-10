@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """Reporting helpers for dashboard and backtest outputs."""
 
 from .dashboard_reporting import (

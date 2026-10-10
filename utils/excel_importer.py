@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # utils/excel_importer.py
 import sys
 import os

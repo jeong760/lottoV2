@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/algorithms/group_advanced.py
 sys = __import__('sys')
 os = __import__('os')
@@ -22,7 +21,7 @@ from data.repositories.lotto_repository import LottoRepository
 from core.algorithms.base import BaseAlgorithm, HistoricalContext, _normalize, register_algorithm
 
 
-def _extract_draw_numbers(draw: dict) -> List[int]:
+def _extract_draw_numbers(draw: dict) -> list[int]:
     """Helper utility to extract and validate 6 numbers from a historical draw record safely."""
     nums = []
     if not isinstance(draw, dict):
@@ -44,7 +43,7 @@ def _extract_draw_numbers(draw: dict) -> List[int]:
 # ==========================================
 
 @register_algorithm("adv_custom_01", "[Advanced] Quantum Superposition & Wave Function Collapse Analysis")
-def generate_by_quantum_contrarian() -> List[int]:
+def generate_by_quantum_contrarian() -> list[int]:
     """
     Simulates a quantum mechanical wave function collapse model where number selection probabilities 
     are derived from complex probability amplitudes modulated by historical energy states and contrarian dampening.

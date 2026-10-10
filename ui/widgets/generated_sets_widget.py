@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # ui/widgets/generated_sets_widget.py
 import sys
 import os

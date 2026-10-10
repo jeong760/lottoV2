@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # core/algorithms/group_pattern.py
 import sys
 import os
@@ -26,7 +25,7 @@ except ImportError:
     _log.warning("scikit-learn GaussianMixture is not available. Pattern algorithms will use statistical fallback modes.")
 
 
-def _extract_draw_numbers(draw: dict) -> List[int]:
+def _extract_draw_numbers(draw: dict) -> list[int]:
     """Helper utility to extract and validate 6 numbers from a historical draw record safely."""
     nums = []
     if not isinstance(draw, dict):
@@ -48,7 +47,7 @@ def _extract_draw_numbers(draw: dict) -> List[int]:
 # ==========================================
 
 @register_algorithm("pattern_real_01", "[Practical] Decile & GMM Balanced Dispersion Analysis")
-def generate_by_decile_balance() -> List[int]:
+def generate_by_decile_balance() -> list[int]:
     """
     Analyzes historical decile/band distribution frequencies using actual draw history 
     and applies balanced probability sampling to ensure a structurally sound number set.

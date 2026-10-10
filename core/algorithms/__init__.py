@@ -3,7 +3,8 @@ import importlib
 import logging
 import sys
 import os
-from typing import Callable, List
+from typing import List
+from collections.abc import Callable
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir)) if "algorithms" in current_dir else current_dir
@@ -17,11 +18,11 @@ _log = logging.getLogger("AlgorithmsPackage")
 
 from .base import FUNCTION_ALGORITHM_REGISTRY, BaseAlgorithm, HistoricalContext, AlgorithmOutcome
 
-_REGISTER_GROUP_CALLBACKS: List[Callable] = []
-LOADED_ALGORITHM_GROUP_MODULES: List[str] = []
+_REGISTER_GROUP_CALLBACKS: list[Callable] = []
+LOADED_ALGORITHM_GROUP_MODULES: list[str] = []
 
 
-def _try_import_group(module_name: str, callback_names: List[str]):
+def _try_import_group(module_name: str, callback_names: list[str]):
     try:
         module = importlib.import_module(f"core.algorithms.{module_name}")
         LOADED_ALGORITHM_GROUP_MODULES.append(module_name)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # workers/lotto_worker.py
 import logging
 import os
@@ -21,6 +20,7 @@ setup_logging(project_root)
 from PyQt5.QtCore import QThread, pyqtSignal
 from config import SUM_MIN, SUM_MAX
 from data.repositories.lotto_repository import LottoRepository
+from data.repositories.ml_model_repository import MLModelRepository
 from utils.audit_security import AuditTrailSecurity
 from core.algorithm_catalog import get_mode_title, resolve_algorithm_mode_id
 from core.generation_schema import (
@@ -99,6 +99,15 @@ class LottoWorker(QThread):
             pass
 
     def _load_ai_weights(self):
+        try:
+            for state_key in ("latest_weights_1_500", "latest_weights"):
+                state = MLModelRepository.load_model_state(state_key)
+                if isinstance(state, dict) and state:
+                    _log.info("AI model weights successfully loaded into LottoWorker from repository key '%s'.", state_key)
+                    return state
+        except Exception as e:
+            _log.warning(f"Failed to load AI model weights from repository: {e}", exc_info=True)
+
         model_path = os.path.join(project_root, "ai", "model_weights.pkl")
         if os.path.exists(model_path):
             try:
@@ -106,7 +115,7 @@ class LottoWorker(QThread):
                     data = _safe_pickle_load(f)
                     if not isinstance(data, dict):
                         return None
-                    _log.info("AI model weights successfully loaded into LottoWorker.")
+                    _log.info("AI model weights successfully loaded into LottoWorker from legacy file.")
                     return data
             except Exception as e:
                 _log.warning(f"Failed to load AI model weights: {e}", exc_info=True)
@@ -153,6 +162,36 @@ class LottoWorker(QThread):
         except Exception as e:
             _log.warning(f"Error in _passes_quality_gate: {e}", exc_info=True)
             return False
+
+    def _passes_diversity_gate(self, raw_set: list, accepted_sets: list[list[int]]) -> bool:
+        """
+        Enforces cross-set diversity by limiting excessive overlap with already accepted sets.
+        """
+        try:
+            candidate = sorted([int(n) for n in raw_set[:6] if 1 <= int(n) <= 45])
+            if len(candidate) != 6:
+                return False
+
+            if not accepted_sets:
+                return True
+
+            # Keep fixed-number constraints feasible while reducing near-duplicate sets.
+            max_allowed_overlap = min(6, max(3, len(self.fixed_numbers)))
+            candidate_set = set(candidate)
+
+            for prev in accepted_sets:
+                if not isinstance(prev, (list, tuple)) or len(prev) < 6:
+                    continue
+                prev_set = set(int(n) for n in prev[:6] if 1 <= int(n) <= 45)
+                if len(prev_set) != 6:
+                    continue
+                overlap = len(candidate_set.intersection(prev_set))
+                if overlap > max_allowed_overlap:
+                    return False
+            return True
+        except Exception as e:
+            _log.warning(f"Error in _passes_diversity_gate: {e}", exc_info=True)
+            return True
 
     def run(self):
         try:
@@ -230,7 +269,11 @@ class LottoWorker(QThread):
                         else:
                             current_raw = sorted(random.sample(range(1, 46), 6))
 
-                    if self._passes_quality_gate(current_raw, latest_draw_nums) and current_raw not in all_generated_sets:
+                    if (
+                        self._passes_quality_gate(current_raw, latest_draw_nums)
+                        and current_raw not in all_generated_sets
+                        and self._passes_diversity_gate(current_raw, all_generated_sets)
+                    ):
                         raw_set = current_raw
                         break
                     else:
@@ -245,6 +288,20 @@ class LottoWorker(QThread):
                         raw_set = sorted(self.fixed_numbers + random.sample(candidate_pool, needed))
                     else:
                         raw_set = sorted(random.sample(range(1, 46), 6))
+
+                    retry_guard = 0
+                    while retry_guard < 120:
+                        retry_guard += 1
+                        if (
+                            raw_set not in all_generated_sets
+                            and self._passes_diversity_gate(raw_set, all_generated_sets)
+                        ):
+                            break
+
+                        if len(candidate_pool) >= needed >= 0:
+                            raw_set = sorted(self.fixed_numbers + random.sample(candidate_pool, needed))
+                        else:
+                            raw_set = sorted(random.sample(range(1, 46), 6))
 
                 remaining_pool = [n for n in range(1, 46) if n not in raw_set and n not in self.excluded_numbers]
                 bonus_ball = random.choice(remaining_pool) if remaining_pool else 1
