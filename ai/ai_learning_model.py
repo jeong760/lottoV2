@@ -26,9 +26,12 @@ try:
     import torch.optim as optim
     from torch.utils.data import DataLoader, TensorDataset
     TORCH_AVAILABLE = True
-except ImportError:
+except Exception as e:
     TORCH_AVAILABLE = False
-    _log.warning("PyTorch is not available. Deep learning LSTM/GRU features will run in fallback statistical mode.")
+    _log.warning(
+        "PyTorch could not be initialized (%s). Deep learning LSTM/GRU features will run in fallback statistical mode.",
+        e,
+    )
 
 try:
     from statsmodels.tsa.arima.model import ARIMA
