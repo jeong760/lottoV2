@@ -114,6 +114,10 @@ class LottoRepository:
                         cursor.execute(f"ALTER TABLE lotto_draws ADD COLUMN {col_name} {col_type};")
                     except sqlite3.OperationalError:
                         pass
+                    try:
+                        cursor.execute(f"ALTER TABLE lotto_history ADD COLUMN {col_name} {col_type};")
+                    except sqlite3.OperationalError:
+                        pass
 
                 history_required_cols = [
                     ("totSellamnt", "INTEGER DEFAULT 0"),
