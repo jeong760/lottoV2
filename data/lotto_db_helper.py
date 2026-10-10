@@ -391,10 +391,12 @@ class LottoDBHelper:
                     ))
 
                 conn.commit()
+                return True
             except Exception as e:
                 if conn:
                     conn.rollback()
                 _log.error(f"Failed to save generation history in LottoDBHelper: {e}", exc_info=True)
+                return False
             finally:
                 if conn:
                     conn.close()

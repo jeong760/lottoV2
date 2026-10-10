@@ -169,6 +169,25 @@ class AlgorithmHub:
         except Exception:
             return 7
 
+    def _build_constrained_random_set(self, fixed_numbers: list[int], excluded_numbers: list[int]) -> list[int]:
+        """Builds one random set while strictly honoring fixed/excluded constraints."""
+        fixed_list = sorted({int(n) for n in (fixed_numbers or []) if 1 <= int(n) <= 45})
+        if len(fixed_list) > 6:
+            return []
+
+        excluded_set = {int(n) for n in (excluded_numbers or []) if 1 <= int(n) <= 45}
+        excluded_set = excluded_set.difference(set(fixed_list))
+
+        needed = 6 - len(fixed_list)
+        if needed < 0:
+            return []
+
+        candidate_pool = [n for n in range(1, 46) if n not in excluded_set and n not in fixed_list]
+        if len(candidate_pool) < needed:
+            return []
+
+        return sorted(fixed_list + random.sample(candidate_pool, needed))
+
     def _score_candidate_set(self, s_nums: list[int]) -> float:
         """
         [Optimization C: Multi-Tier Ensemble Scoring]
@@ -216,7 +235,7 @@ class AlgorithmHub:
                 if not s or len(s) < 6:
                     continue
                 s_sorted = sorted([int(n) for n in s[:6] if n is not None and str(n).isdigit() and 1 <= int(n) <= 45])
-                if len(s_sorted) != 6:
+                if len(s_sorted) != 6 or len(set(s_sorted)) != 6:
                     continue
 
                 s_set = set(s_sorted)
@@ -299,8 +318,8 @@ class AlgorithmHub:
             final_scored.sort(key=lambda x: x[0], reverse=True)
             return [ind for score, ind in final_scored]
         except Exception as e:
-            _log.warning(f"Error in _evolve_candidate_sets: {e}", exc_info=True)
-            return initial_pool
+            _log.error(f"Error in _evolve_candidate_sets: {e}", exc_info=True)
+            return self._apply_independence_and_overlap_filters(initial_pool, fixed_numbers or [], excluded_numbers or [])
 
     def _diversify_sets_with_kmeans(self, candidate_pool: list[list[int]], target_count: int) -> list[list[int]]:
         if len(candidate_pool) <= target_count:
@@ -451,8 +470,13 @@ class AlgorithmHub:
             )
             generated_sets = [item[1] for item in scored_pool[:target_count]]
 
-            while len(generated_sets) < target_count:
-                fallback_sample = sorted(random.sample(range(1, 46), 6))
+            fallback_attempts = 0
+            max_fallback_attempts = max(300, int(target_count) * 40)
+            while len(generated_sets) < target_count and fallback_attempts < max_fallback_attempts:
+                fallback_attempts += 1
+                fallback_sample = self._build_constrained_random_set(fixed_list, excluded_list)
+                if len(fallback_sample) != 6:
+                    break
                 if fallback_sample not in generated_sets:
                     generated_sets.append(fallback_sample)
 
@@ -478,6 +502,7 @@ class AlgorithmHub:
                 extras={
                     "top_ranked_combinations": top_ranked_combinations,
                     "score_weight_profile": {k: round(float(v), 4) for k, v in score_weights.items()},
+                    "dynamic_weights": {k: round(float(v), 4) for k, v in dynamic_weights.items()},
                 },
             )
 
@@ -485,8 +510,23 @@ class AlgorithmHub:
 
         except Exception as e:
             _log.critical(f"[CRITICAL DEBUG] AlgorithmHub generate_premium_numbers error: {e}\n{traceback.format_exc()}")
-            fallback_sets = [sorted(random.sample(range(1, 46), 6)) for _ in range(int(set_count))]
-            fallback_stats = build_generation_stats(fallback_sets[0], 75.0, 12)
+            target_count = max(1, int(set_count))
+            fixed_list = [int(n) for n in (fixed_numbers or []) if 1 <= int(n) <= 45]
+            excluded_list = [int(n) for n in (excluded_numbers or []) if 1 <= int(n) <= 45 and int(n) not in fixed_list]
+
+            fallback_sets = []
+            fallback_attempts = 0
+            max_fallback_attempts = max(500, target_count * 60)
+            while len(fallback_sets) < target_count and fallback_attempts < max_fallback_attempts:
+                fallback_attempts += 1
+                sample = self._build_constrained_random_set(fixed_list, excluded_list)
+                if len(sample) != 6:
+                    break
+                if sample not in fallback_sets:
+                    fallback_sets.append(sample)
+
+            stats_seed = fallback_sets[0] if fallback_sets else [3, 12, 24, 27, 35, 42]
+            fallback_stats = build_generation_stats(stats_seed, 75.0, 12)
             fallback_scored = [(65.0 - idx * 0.5, nums) for idx, nums in enumerate(fallback_sets)]
             fallback_top_ranked = build_top_ranked_combinations(fallback_scored, limit=50)
             fallback_score_weights = derive_score_weights_from_history([], lookback=120)

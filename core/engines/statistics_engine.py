@@ -76,9 +76,21 @@ class StatisticsEngine:
                 fallback_data["total_draws"] = total_draws
                 return fallback_data
 
+            def _resolve_draw_no(draw_like: Any, fallback: int = 0) -> int:
+                try:
+                    if not isinstance(draw_like, dict):
+                        return int(fallback)
+                    for key in ("draw_no", "draw", "drwNo"):
+                        value = draw_like.get(key)
+                        if value is not None:
+                            return int(value)
+                except (ValueError, TypeError):
+                    pass
+                return int(fallback)
+
             # Sort history chronologically by draw number
-            sorted_history = sorted(all_draws, key=lambda x: int(x.get('draw') or x.get('drwNo', 0)))
-            latest_draw = int(sorted_history[-1].get('draw') or sorted_history[-1].get('drwNo', total_draws))
+            sorted_history = sorted(all_draws, key=lambda x: _resolve_draw_no(x, 0))
+            latest_draw = _resolve_draw_no(sorted_history[-1], total_draws)
 
             freq = {i: 0 for i in range(1, 46)}
             sums = []
@@ -97,7 +109,7 @@ class StatisticsEngine:
             ac_value_counts = defaultdict(int)
 
             for draw_idx, draw in enumerate(sorted_history):
-                draw_num = int(draw.get('draw') or draw.get('drwNo') or (draw_idx + 1))
+                draw_num = _resolve_draw_no(draw, draw_idx + 1)
                 nums = []
                 
                 # Support both modern keys (num1~6) and legacy keys (drwtNo1~6)

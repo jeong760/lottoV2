@@ -381,12 +381,9 @@ class GeneratedSetsWidget(QWidget):
         """
         if index < 26:
             return f"SET {chr(ord('A') + index)}"
-        elif index < 52:
-            sub_idx = index - 26
-            return f"SET {chr(ord('A') + sub_idx)}{sub_idx}"
-        else:
-            sub_idx = index - 26
-            return f"SET A{sub_idx}"
+        sub_idx = index - 26
+        letter = chr(ord('A') + (sub_idx % 26))
+        return f"SET {letter}{sub_idx}"
 
     def set_all_checkboxes(self, check_state: bool):
         try:

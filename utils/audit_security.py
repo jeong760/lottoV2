@@ -18,14 +18,67 @@ if project_root not in sys.path:
 _log = logging.getLogger("AuditTrailSecurity")
 
 
+def _load_audit_secret_key() -> bytes:
+    """
+    Loads the audit-signing key from environment or a local secret file.
+    Priority:
+      1) LOTTO_AUDIT_SECRET_KEY environment variable
+      2) project-root db/.lotto_audit_secret (auto-generated if missing)
+    """
+    env_value = str(os.getenv("LOTTO_AUDIT_SECRET_KEY", "") or "").strip()
+    if env_value:
+        return env_value.encode("utf-8")
+
+    secret_dir = os.path.join(project_root, "db")
+    secret_path = os.path.join(secret_dir, ".lotto_audit_secret")
+
+    try:
+        if os.path.exists(secret_path):
+            with open(secret_path, "rb") as f:
+                data = f.read()
+                if data:
+                    return data
+    except Exception as e:
+        _log.warning("Failed to read persisted audit secret. detail=%s", e, exc_info=True)
+
+    try:
+        os.makedirs(secret_dir, exist_ok=True)
+        generated = os.urandom(32)
+        with open(secret_path, "wb") as f:
+            f.write(generated)
+        try:
+            os.chmod(secret_path, 0o600)
+        except Exception:
+            pass
+        _log.warning(
+            "Generated a new local audit secret at %s. Set LOTTO_AUDIT_SECRET_KEY in production environments.",
+            secret_path,
+        )
+        return generated
+    except Exception as e:
+        _log.warning(
+            "Failed to persist audit secret; using ephemeral in-memory key. detail=%s",
+            e,
+            exc_info=True,
+        )
+        return os.urandom(32)
+
+
 class AuditTrailSecurity:
     """
     Audit log and digital signature manager to ensure tamper-proof integrity 
     of generated lotto number sets, multi-algorithm ensemble contributions, and draw records.
     """
     
-    # Internal secret key used for HMAC signature hashing to prevent signature forge
-    _SECRET_KEY = b"LottoV2_Audit_Security_Secret_Key_2026"
+    # Internal secret key cache loaded from environment / managed secret storage.
+    _SECRET_KEY = None
+
+    @classmethod
+    def _get_secret_key(cls) -> bytes:
+        if isinstance(cls._SECRET_KEY, (bytes, bytearray)) and len(cls._SECRET_KEY) > 0:
+            return bytes(cls._SECRET_KEY)
+        cls._SECRET_KEY = _load_audit_secret_key()
+        return bytes(cls._SECRET_KEY)
 
     @staticmethod
     def _json_default_converter(o: Any) -> Any:
@@ -55,7 +108,7 @@ class AuditTrailSecurity:
             data_bytes = data_string.encode('utf-8')
             
             if use_hmac:
-                signature = hmac.new(cls._SECRET_KEY, data_bytes, hashlib.sha256).hexdigest()
+                signature = hmac.new(cls._get_secret_key(), data_bytes, hashlib.sha256).hexdigest()
             else:
                 signature = hashlib.sha256(data_bytes).hexdigest()
                 

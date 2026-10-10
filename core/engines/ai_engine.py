@@ -94,8 +94,9 @@ class AIEngine:
             _log.info(f"Starting unified AI & ML training pipeline (Target Accuracy: {target_accuracy}%)")
             
             all_draws = LottoRepository.get_all_draws()
-            if not all_draws or len(all_draws) < int(ML_RECENT_DRAWS_LIMIT):
-                print(f"⚠️ Insufficient data: At least {ML_RECENT_DRAWS_LIMIT} historical draws are required for training.")
+            required_draws = max(30, int(ML_RECENT_DRAWS_LIMIT))
+            if not all_draws or len(all_draws) < required_draws:
+                print(f"⚠️ Insufficient data: At least {required_draws} historical draws are required for training.")
                 _log.warning(f"Insufficient historical draw records: {len(all_draws) if all_draws else 0}")
                 return None
 

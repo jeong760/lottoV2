@@ -159,7 +159,7 @@ class LottoWorker(QThread):
                 max_consecutive_run=3,
             )
         except Exception as e:
-            _log.warning(f"Error in _passes_quality_gate: {e}", exc_info=True)
+            _log.error(f"Error in _passes_quality_gate: {e}", exc_info=True)
             return False
 
     def _passes_diversity_gate(self, raw_set: list, accepted_sets: list[list[int]]) -> bool:
