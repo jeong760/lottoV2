@@ -27,7 +27,7 @@ DB_PATH = os.path.join(DB_DIR, "lottomater.db")
 os.makedirs(DB_DIR, exist_ok=True)
 
 # Official GitHub source URL for lotto history data sync
-GITHUB_DATA_URL = "https://raw.githubusercontent.com/jeong760/lotto-data/main/data/lotto-history.json"
+GITHUB_DATA_URL = "https://raw.githubusercontent.com/papaya5rhw1984/lotto-data/main/all.json"
 
 
 # ==========================================

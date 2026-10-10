@@ -15,7 +15,7 @@ if project_root not in sys.path:
 
 _log = logging.getLogger("DBBootstrapper")
 
-GITHUB_JSON_URL = "https://raw.githubusercontent.com/jeong760/lotto-data/main/data/lotto-history.json"
+GITHUB_JSON_URL = "https://raw.githubusercontent.com/papaya5rhw1984/lotto-data/main/all.json"
 
 
 class DBBootstrapper:
@@ -129,13 +129,19 @@ class DBBootstrapper:
                             continue
 
                         draw_date = item.get("drwNoDate") or item.get("draw_date") or item.get("date", "")
-                        n1 = item.get("drwtNo1") or item.get("num1")
-                        n2 = item.get("drwtNo2") or item.get("num2")
-                        n3 = item.get("drwtNo3") or item.get("num3")
-                        n4 = item.get("drwtNo4") or item.get("num4")
-                        n5 = item.get("drwtNo5") or item.get("num5")
-                        n6 = item.get("drwtNo6") or item.get("num6")
-                        bonus = item.get("bnusNo") or item.get("bonus") or 0
+                        numbers = item.get("numbers") if isinstance(item.get("numbers"), list) else []
+
+                        if len(numbers) >= 6:
+                            n1, n2, n3, n4, n5, n6 = numbers[:6]
+                        else:
+                            n1 = item.get("drwtNo1") or item.get("num1")
+                            n2 = item.get("drwtNo2") or item.get("num2")
+                            n3 = item.get("drwtNo3") or item.get("num3")
+                            n4 = item.get("drwtNo4") or item.get("num4")
+                            n5 = item.get("drwtNo5") or item.get("num5")
+                            n6 = item.get("drwtNo6") or item.get("num6")
+
+                        bonus = item.get("bnusNo") or item.get("bonus") or item.get("bonus_no") or 0
 
                         if all(n is not None for n in [n1, n2, n3, n4, n5, n6]):
                             try:
