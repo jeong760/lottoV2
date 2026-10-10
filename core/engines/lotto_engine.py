@@ -440,6 +440,15 @@ class LottoEngine:
         return sorted(cleaned[:6])
 
     def _is_function_algorithm_enabled(self, algorithm_id: str) -> bool:
+        if algorithm_id == "ml_005":
+            try:
+                from core.algorithms import group_ml_ai
+
+                if bool(getattr(group_ml_ai, "LIGHTGBM_RUNTIME_DISABLED", False)):
+                    return False
+            except Exception:
+                pass
+
         dependency_name = self.FUNCTION_DEPENDENCIES.get(algorithm_id)
         if dependency_name is None:
             return True

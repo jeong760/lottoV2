@@ -136,6 +136,40 @@ def test_dependency_filtering_disables_ml_function_algorithms():
     assert all(entry["source"] != "function:ml_006" for entry in bank)
 
 
+def test_runtime_disabled_lightgbm_function_is_skipped(monkeypatch):
+    from core.algorithms import group_ml_ai
+
+    engine = LottoEngine(historical_draws=_mock_history())
+
+    engine._strategy_candidate_cache.clear()
+    engine.runtime_dependencies["sklearn"] = True
+    engine.runtime_dependencies["lightgbm"] = True
+    engine.runtime_dependencies["catboost"] = False
+
+    ml_005_calls = {"count": 0}
+
+    def _ml_005():
+        ml_005_calls["count"] += 1
+        return [3, 11, 16, 24, 37, 44]
+
+    engine.function_algorithm_registry = {
+        "ml_001": lambda: [2, 9, 14, 25, 32, 40],
+        "ml_005": _ml_005,
+    }
+    engine.function_algorithm_titles = {
+        "ml_001": "ML Function",
+        "ml_005": "LightGBM Function",
+    }
+    engine.class_algorithm_registry = {}
+
+    monkeypatch.setattr(group_ml_ai, "LIGHTGBM_RUNTIME_DISABLED", True)
+
+    bank = engine._build_strategy_candidate_bank("ml_ai", target_size=2)
+
+    assert ml_005_calls["count"] == 0
+    assert all(entry["source"] != "function:ml_005" for entry in bank)
+
+
 def test_ml_strategy_mapping_contains_new_algorithms():
     engine = LottoEngine(historical_draws=_mock_history())
     ml_ids = engine.STRATEGY_FUNCTION_IDS["ml_ai"]
