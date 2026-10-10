@@ -115,6 +115,8 @@ class DBBootstrapper:
                 ("fifth_accumamnt", "INTEGER DEFAULT 0"), ("fifth_przwner_co", "INTEGER DEFAULT 0"), ("fifth_winamnt", "INTEGER DEFAULT 0"),
             ],
             "lotto_history": [
+                ("totSellamnt", "INTEGER DEFAULT 0"),
+                ("firstAccumamnt", "INTEGER DEFAULT 0"), ("firstPrzwnerCo", "INTEGER DEFAULT 0"), ("firstWinamnt", "INTEGER DEFAULT 0"),
                 ("secondAccumamnt", "INTEGER DEFAULT 0"), ("secondPrzwnerCo", "INTEGER DEFAULT 0"), ("secondWinamnt", "INTEGER DEFAULT 0"),
                 ("thirdAccumamnt", "INTEGER DEFAULT 0"), ("thirdPrzwnerCo", "INTEGER DEFAULT 0"), ("thirdWinamnt", "INTEGER DEFAULT 0"),
                 ("fourthAccumamnt", "INTEGER DEFAULT 0"), ("fourthPrzwnerCo", "INTEGER DEFAULT 0"), ("fourthWinamnt", "INTEGER DEFAULT 0"),
