@@ -29,10 +29,20 @@ def setup_logging(project_root_path=None):
     log_file = log_dir / "lotto_dashboard.log"
     log_file.touch(exist_ok=True)
 
+    # Avoid thread metadata resolution in LogRecord construction.
+    # This prevents worker-thread logging crashes on some Python 3.14 runtimes.
+    logging.logThreads = False
+
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
+    target_log_file = str(log_file)
 
-    # 기존 핸들러 중복 방지 및 닫기 처리 (ResourceWarning 해결)
+    if getattr(root_logger, "_lotto_logging_initialized", False):
+        existing_log_file = getattr(root_logger, "_lotto_log_file", "")
+        if existing_log_file == target_log_file and root_logger.handlers:
+            return
+
+    # 핸들러 중복 방지 및 닫기 처리 (ResourceWarning 해결)
     if root_logger.handlers:
         for handler in list(root_logger.handlers):
             handler.close()
@@ -58,6 +68,8 @@ def setup_logging(project_root_path=None):
     )
     console_handler.setFormatter(console_formatter)
     root_logger.addHandler(console_handler)
+    root_logger._lotto_logging_initialized = True
+    root_logger._lotto_log_file = target_log_file
 
     logging.getLogger("LottoLogger").info(f"Centralized logging initialized. Log path: {log_file}")
 

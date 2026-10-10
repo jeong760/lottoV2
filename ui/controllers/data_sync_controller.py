@@ -1,12 +1,11 @@
 # ui/controllers/data_sync_controller.py
 import logging
+import importlib
 import psutil
 import traceback
 from PyQt5.QtCore import QTimer
 from data.lotto_db_helper import LottoDBHelper
 from data.repositories.lotto_repository import LottoRepository
-from workers.ai_train_worker import AITrainWorker
-from core.engines.statistics_engine import StatisticsEngine
 from config import (
     AUTO_AI_TRAIN_EPOCHS,
     AUTO_AI_TRAIN_INTERVAL_HOURS,
@@ -14,6 +13,41 @@ from config import (
 )
 
 _log = logging.getLogger("DataSyncController")
+
+_AI_TRAIN_WORKER_RESOLVED = False
+_AI_TRAIN_WORKER_CLS = None
+_STATISTICS_ENGINE_RESOLVED = False
+_STATISTICS_ENGINE_CLS = None
+
+
+def _resolve_ai_train_worker_cls():
+    global _AI_TRAIN_WORKER_RESOLVED, _AI_TRAIN_WORKER_CLS
+    if _AI_TRAIN_WORKER_RESOLVED:
+        return _AI_TRAIN_WORKER_CLS
+
+    _AI_TRAIN_WORKER_RESOLVED = True
+    try:
+        module = importlib.import_module("workers.ai_train_worker")
+        _AI_TRAIN_WORKER_CLS = getattr(module, "AITrainWorker", None)
+    except Exception as e:
+        _AI_TRAIN_WORKER_CLS = None
+        _log.warning("AITrainWorker is unavailable. Auto-training will be skipped. detail=%s", e)
+    return _AI_TRAIN_WORKER_CLS
+
+
+def _resolve_statistics_engine_cls():
+    global _STATISTICS_ENGINE_RESOLVED, _STATISTICS_ENGINE_CLS
+    if _STATISTICS_ENGINE_RESOLVED:
+        return _STATISTICS_ENGINE_CLS
+
+    _STATISTICS_ENGINE_RESOLVED = True
+    try:
+        module = importlib.import_module("core.engines.statistics_engine")
+        _STATISTICS_ENGINE_CLS = getattr(module, "StatisticsEngine", None)
+    except Exception as e:
+        _STATISTICS_ENGINE_CLS = None
+        _log.warning("StatisticsEngine is unavailable. Analytics widgets will use fallback payloads. detail=%s", e)
+    return _STATISTICS_ENGINE_CLS
 
 
 class StatisticsWidgetConnector:
@@ -26,14 +60,22 @@ class StatisticsWidgetConnector:
             if not history_data:
                 history_data = [{"draw": 1, "numbers": [1, 10, 20, 30, 40, 45]}]
 
-            gaps_data = StatisticsEngine.analyze_periodicity_and_gaps(history_data)
-            decade_data = StatisticsEngine.analyze_decade_and_digit_distribution(history_data)
-            chi2_data = StatisticsEngine.chi_square_goodness_of_fit(history_data)
-            phase_c_data = StatisticsEngine.build_phase_c_analytics(history_data, lookback_draws=80)
-            comprehensive_stats = StatisticsEngine.get_comprehensive_statistics()
-            if not isinstance(comprehensive_stats, dict):
-                comprehensive_stats = {}
-            if not comprehensive_stats:
+            statistics_engine_cls = _resolve_statistics_engine_cls()
+            if statistics_engine_cls is not None:
+                gaps_data = statistics_engine_cls.analyze_periodicity_and_gaps(history_data)
+                decade_data = statistics_engine_cls.analyze_decade_and_digit_distribution(history_data)
+                chi2_data = statistics_engine_cls.chi_square_goodness_of_fit(history_data)
+                phase_c_data = statistics_engine_cls.build_phase_c_analytics(history_data, lookback_draws=80)
+                comprehensive_stats = statistics_engine_cls.get_comprehensive_statistics()
+                if not isinstance(comprehensive_stats, dict):
+                    comprehensive_stats = {}
+                if not comprehensive_stats:
+                    comprehensive_stats = {"phase_c_analytics": phase_c_data}
+            else:
+                gaps_data = {i: 0 for i in range(1, 46)}
+                decade_data = {"decade_distribution": {"1-10": 0, "11-20": 0, "21-30": 0, "31-40": 0, "41-45": 0}}
+                chi2_data = {"chi2_stat": 0.0, "p_value": 1.0, "is_uniformly_distributed": True}
+                phase_c_data = {"hot_numbers": [], "cold_numbers": []}
                 comprehensive_stats = {"phase_c_analytics": phase_c_data}
 
             if hasattr(self.main_window, 'decade_dist_widget') and self.main_window.decade_dist_widget:
@@ -192,7 +234,13 @@ class DataSyncController:
             if self.ai_worker is not None and self.ai_worker.isRunning():
                 return
 
-            self.ai_worker = AITrainWorker(total_epochs=AUTO_AI_TRAIN_EPOCHS)
+            ai_train_worker_cls = _resolve_ai_train_worker_cls()
+            if ai_train_worker_cls is None:
+                if hasattr(self.main_window, 'live_console_widget') and self.main_window.live_console_widget:
+                    self.main_window.live_console_widget.log_message("AI Model: Auto-training unavailable (optional dependencies missing).")
+                return
+
+            self.ai_worker = ai_train_worker_cls(total_epochs=AUTO_AI_TRAIN_EPOCHS)
             self.ai_worker.progress_signal.connect(self.on_ai_training_progress)
             self.ai_worker.finished_signal.connect(self.on_ai_training_finished)
             self.ai_worker.start()

@@ -1,5 +1,6 @@
 # ui/__init__.py
 import logging
+import importlib
 import os
 import sys
 
@@ -12,37 +13,34 @@ setup_logging(project_root)
 
 _log = logging.getLogger("UIModule")
 
-MainWindow = None
-SimulationController = None
-DataSyncController = None
+_UI_EXPORTS = {
+    "MainWindow": ("ui.main_window", "MainWindow"),
+    "SimulationController": ("ui.controllers.simulation_controller", "SimulationController"),
+    "DataSyncController": ("ui.controllers.data_sync_controller", "DataSyncController"),
+    "StatisticsWidgetConnector": ("ui.controllers.data_sync_controller", "StatisticsWidgetConnector"),
+}
+_UI_CACHE = {}
 
-# Safe import of MainWindow from ui.main_window module
-try:
-    from ui.main_window import MainWindow
-except ImportError:
+
+def __getattr__(name):
+    if name not in _UI_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    if name in _UI_CACHE:
+        return _UI_CACHE[name]
+
+    module_name, attr_name = _UI_EXPORTS[name]
     try:
-        from .main_window import MainWindow
-    except ImportError as e:
-        _log.warning(f"[UIModule] Could not import 'MainWindow': {e}")
+        module = importlib.import_module(module_name)
+        value = getattr(module, attr_name)
+    except Exception as e:
+        _log.warning(f"[UIModule] Could not import '{name}': {e}")
+        value = None
 
-# Safe import of modular controllers
-try:
-    from ui.controllers.simulation_controller import SimulationController
-except ImportError:
-    try:
-        from .controllers.simulation_controller import SimulationController
-    except ImportError as e:
-        _log.warning(f"[UIModule] Could not import 'SimulationController': {e}")
+    _UI_CACHE[name] = value
+    return value
 
-try:
-    from ui.controllers.data_sync_controller import DataSyncController, StatisticsWidgetConnector
-except ImportError:
-    try:
-        from .controllers.data_sync_controller import DataSyncController, StatisticsWidgetConnector
-    except ImportError as e:
-        _log.warning(f"[UIModule] Could not import 'DataSyncController': {e}")
-
-_log.info("[UIModule] UI package initialization completed.")
+_log.info("[UIModule] UI package initialization completed (lazy export mode).")
 
 __all__ = [
     "MainWindow",

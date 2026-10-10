@@ -1,28 +1,28 @@
-# LottoV2 runtime dependencies; keep aligned with pyproject.toml.
+# LottoV2 runtime dependencies for Python 3.14+; keep aligned with pyproject.toml.
 
 # PyQt5: GUI toolkit baseline for Qt compatibility
 PyQt5>=5.15.11
 
 # PyQt5-sip: keep compatible with supported PyQt5 wheels
-PyQt5-sip>=12.19.0
+PyQt5-sip>=12.20.0
 
-# NumPy: flexible within stable major versions
-numpy>=2.0,<4
+# NumPy: Python 3.14-ready floor, constrained to major v2
+numpy>=2.3.2,<3
 
-# pandas: flexible within the 2.x API line
-pandas>=2.0,<3
+# pandas: Python 3.14-ready floor, allow current major lines
+pandas>=2.3.3,<4
 
 # requests: networking utility without strict version coupling
-requests>=2.32.0
+requests>=2.34.2
 
-# scikit-learn: flexible within current major version
-scikit-learn>=1.0,<2
+# scikit-learn: Python 3.14-ready floor
+scikit-learn>=1.7.2,<2
 
 # statsmodels: baseline for statistical engine compatibility
 statsmodels>=0.14.5
 
-# XGBoost: flexible within current major version
-xgboost>=2.0,<4
+# XGBoost: Python 3.14-ready floor
+xgboost>=3.4.1,<4
 
 # LightGBM: flexible within current major version
 lightgbm>=4.7.0,<5
@@ -30,23 +30,23 @@ lightgbm>=4.7.0,<5
 # CatBoost: flexible within current major version
 catboost>=1.2.10,<2
 
-# torch: minimum retained for GPU/runtime compatibility
-torch>=2.12.0
+# torch: Python 3.14-ready floor, retain major compatibility bound
+torch>=2.9.0,<3
 
-# jax: minimum retained for model and numerical compatibility
-jax>=0.11.2
+# jax: retain current line with conservative major bound
+jax>=0.11.2,<1
 
-# openpyxl: flexible within current major version
-openpyxl>=3.1,<4
+# openpyxl: Python 3.14-ready floor
+openpyxl>=3.1.5,<4
 
-# SciPy: flexible within current major version
-scipy>=1.10,<2
+# SciPy: Python 3.14-ready floor
+scipy>=1.16.1,<2
 
-# psutil: flexible utility dependency
-psutil>=5.9,<8
+# psutil: Python 3.14-ready floor
+psutil>=7.2.2,<8
 
-# reportlab: flexible within current major version
-reportlab>=4.0,<5
+# reportlab: Python 3.14-ready floor
+reportlab>=5.0.1,<6
 
-# packaging: flexible utility dependency
-packaging>=23,<27
+# packaging: Python 3.14-ready floor
+packaging>=25,<27

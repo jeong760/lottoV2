@@ -1,5 +1,6 @@
 # utils/__init__.py
 import logging
+import importlib
 import os
 import sys
 
@@ -11,48 +12,35 @@ if project_root not in sys.path:
 # Note: Logging setup is centralized in launcher.py to prevent redundant or misplaced log directory creation.
 _log = logging.getLogger("UtilsModule")
 
-setup_logger = None
-setup_logging_func = None
-AuditTrailSecurity = None
-DBSync = None
-ExcelImporter = None
+_UTILS_EXPORTS = {
+    "setup_logger": ("utils.logger", "setup_logger"),
+    "setup_logging_func": ("utils.logger", "setup_logging"),
+    "AuditTrailSecurity": ("utils.audit_security", "AuditTrailSecurity"),
+    "DBSync": ("utils.db_sync", "DBSync"),
+    "ExcelImporter": ("utils.excel_importer", "ExcelImporter"),
+}
+_UTILS_CACHE = {}
 
-# 1. Safe import of setup_logger, setup_logging, and AuditTrailSecurity
-try:
-    from utils.logger import setup_logger, setup_logging as setup_logging_func
-except ImportError:
+
+def __getattr__(name):
+    if name not in _UTILS_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    if name in _UTILS_CACHE:
+        return _UTILS_CACHE[name]
+
+    module_name, attr_name = _UTILS_EXPORTS[name]
     try:
-        from .logger import setup_logger, setup_logging as setup_logging_func
-    except ImportError as e:
-        _log.warning(f"[UtilsModule] Could not import logging setup functions: {e}")
+        module = importlib.import_module(module_name)
+        value = getattr(module, attr_name)
+    except Exception as e:
+        _log.warning(f"[UtilsModule] Could not import {name}: {e}")
+        value = None
 
-try:
-    from utils.audit_security import AuditTrailSecurity
-except ImportError:
-    try:
-        from .audit_security import AuditTrailSecurity
-    except ImportError as e:
-        _log.warning(f"[UtilsModule] Could not import AuditTrailSecurity: {e}")
+    _UTILS_CACHE[name] = value
+    return value
 
-# 2. Safe import of DBSync (db_sync.py)
-try:
-    from utils.db_sync import DBSync
-except ImportError:
-    try:
-        from .db_sync import DBSync
-    except ImportError as e:
-        _log.warning(f"[UtilsModule] Could not import DBSync: {e}")
-
-# 3. Safe import of ExcelImporter (excel_importer.py)
-try:
-    from utils.excel_importer import ExcelImporter
-except ImportError:
-    try:
-        from .excel_importer import ExcelImporter
-    except ImportError as e:
-        _log.warning(f"[UtilsModule] Could not import ExcelImporter: {e}")
-
-_log.info("[UtilsModule] Utils package initialization completed.")
+_log.info("[UtilsModule] Utils package initialization completed (lazy export mode).")
 
 __all__ = [
     "setup_logger",

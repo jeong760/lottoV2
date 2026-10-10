@@ -29,6 +29,11 @@ try:
 except ImportError:
     pd = None
 
+try:
+    from openpyxl import Workbook
+except ImportError:
+    Workbook = None
+
 
 class BonusSwapDialog(QDialog):
     """Dialog window displaying bonus swap optimization simulation results."""
@@ -664,26 +669,80 @@ class GeneratedSetsWidget(QWidget):
                 QMessageBox.warning(self, "Export Warning", "No rows selected or available for export.")
                 return
 
-            file_path, _ = QFileDialog.getSaveFileName(
-                self, "Export to Excel", "lotto_generated_sets.xlsx", "Excel Files (*.xlsx);;All Files (*)"
+            file_path, selected_filter = QFileDialog.getSaveFileName(
+                self,
+                "Export to Excel",
+                "lotto_generated_sets.xlsx",
+                "Excel Files (*.xlsx);;CSV Files (*.csv);;All Files (*)",
             )
             if not file_path:
                 return
 
-            if pd is not None:
-                df = pd.DataFrame(data_list, columns=headers)
-                df.to_excel(file_path, index=False)
-            else:
-                with open(file_path, mode='w', newline='', encoding='utf-8-sig') as f:
+            def _write_csv(path: str):
+                with open(path, mode="w", newline="", encoding="utf-8-sig") as f:
                     writer = csv.writer(f)
                     writer.writerow(headers)
                     writer.writerows(data_list)
 
-            QMessageBox.information(self, "Success", f"Successfully exported data to:\n{file_path}")
-            _log.info(f"Successfully exported generated sets to {file_path}")
+            def _write_xlsx(path: str):
+                if pd is not None:
+                    df = pd.DataFrame(data_list, columns=headers)
+                    df.to_excel(path, index=False)
+                    return "pandas"
+                if Workbook is not None:
+                    wb = Workbook()
+                    ws = wb.active
+                    ws.title = "Generated Sets"
+                    ws.append(headers)
+                    for row_data in data_list:
+                        ws.append(row_data)
+                    wb.save(path)
+                    return "openpyxl"
+                raise RuntimeError("Excel export dependency missing: install pandas or openpyxl.")
+
+            target_path = file_path
+            selected_filter = (selected_filter or "").lower()
+            _, ext = os.path.splitext(target_path)
+            ext = ext.lower()
+            if "*.csv" in selected_filter and ext != ".csv":
+                target_path = f"{os.path.splitext(target_path)[0]}.csv"
+                ext = ".csv"
+            elif not ext:
+                ext = ".xlsx"
+                target_path = f"{target_path}{ext}"
+
+            fallback_note = ""
+            if ext == ".csv":
+                _write_csv(target_path)
+            else:
+                try:
+                    writer_name = _write_xlsx(target_path)
+                    _log.info("Excel export completed using %s writer: %s", writer_name, target_path)
+                except Exception as excel_error:
+                    _log.warning(
+                        "Excel export failed (%s); falling back to CSV export.",
+                        excel_error,
+                        exc_info=True,
+                    )
+                    fallback_base = os.path.splitext(target_path)[0]
+                    fallback_path = f"{fallback_base}.csv"
+                    if os.path.exists(fallback_path):
+                        suffix = 1
+                        while True:
+                            candidate_path = f"{fallback_base}_{suffix}.csv"
+                            if not os.path.exists(candidate_path):
+                                fallback_path = candidate_path
+                                break
+                            suffix += 1
+                    target_path = fallback_path
+                    _write_csv(target_path)
+                    fallback_note = "\n(Excel writer failed, exported CSV instead.)"
+
+            QMessageBox.information(self, "Success", f"Successfully exported data to:\n{target_path}{fallback_note}")
+            _log.info("Successfully exported generated sets to %s", target_path)
 
         except Exception as e:
-            _log.error(f"Failed to export data: {e}")
+            _log.error(f"Failed to export data: {e}", exc_info=True)
             QMessageBox.critical(self, "Error", f"Failed to export data: {e}")
 
     def _resolve_target_row(self) -> int:

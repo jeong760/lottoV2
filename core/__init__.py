@@ -15,9 +15,15 @@ _log = logging.getLogger("CoreModule")
 
 # Force inject sys.modules alias for backward compatibility with 'core.statistics_engine'
 try:
-    from core.engines.statistics_engine import StatisticsEngine
     stat_mod = types.ModuleType("core.statistics_engine")
-    stat_mod.StatisticsEngine = StatisticsEngine
+
+    def _statistics_engine_getattr(attr_name):
+        if attr_name == "StatisticsEngine":
+            from core.engines.statistics_engine import StatisticsEngine
+            return StatisticsEngine
+        raise AttributeError(f"module 'core.statistics_engine' has no attribute {attr_name!r}")
+
+    stat_mod.__getattr__ = _statistics_engine_getattr
     sys.modules["core.statistics_engine"] = stat_mod
 except Exception as e:
     _log.warning(f"[CoreModule] Failed to inject statistics_engine alias: {e}")
