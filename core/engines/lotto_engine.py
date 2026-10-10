@@ -120,7 +120,7 @@ class LottoEngine:
 
         # Performance cache to avoid redundant heavy calculations
         self._cache = {}
-        self._strategy_candidate_cache: dict[tuple[str, int, int], list[dict[str, Any]]] = {}
+        self._strategy_candidate_cache: dict[tuple[str, int, int, bool], list[dict[str, Any]]] = {}
 
         # Dynamic Ensemble Weighting: Initialize performance weights for strategies/personas
         self.persona_weights = {
@@ -440,10 +440,22 @@ class LottoEngine:
         return sorted(cleaned[:6])
 
     def _is_function_algorithm_enabled(self, algorithm_id: str) -> bool:
+        if algorithm_id == "ml_005" and self._is_lightgbm_runtime_disabled():
+            return False
+
         dependency_name = self.FUNCTION_DEPENDENCIES.get(algorithm_id)
         if dependency_name is None:
             return True
         return bool(self.runtime_dependencies.get(dependency_name, False))
+
+    @staticmethod
+    def _is_lightgbm_runtime_disabled() -> bool:
+        try:
+            from core.algorithms import group_ml_ai
+
+            return bool(getattr(group_ml_ai, "LIGHTGBM_RUNTIME_DISABLED", False))
+        except Exception:
+            return False
 
     def _get_persona_profile(self, strategy_key: str) -> dict[str, float]:
         return dict(self.STRATEGY_PROFILES.get(strategy_key, self.STRATEGY_PROFILES["hybrid"]))
@@ -527,7 +539,7 @@ class LottoEngine:
 
     def _build_strategy_candidate_bank(self, strategy_key: str, target_size: int = 120) -> list[dict[str, Any]]:
         context_signature = getattr(self._algorithm_context, "signature", "none") if self._algorithm_context is not None else "none"
-        cache_key = (strategy_key, target_size, hash(context_signature))
+        cache_key = (strategy_key, target_size, hash(context_signature), self._is_lightgbm_runtime_disabled())
         if cache_key in self._strategy_candidate_cache:
             return list(self._strategy_candidate_cache[cache_key])
 
@@ -536,17 +548,25 @@ class LottoEngine:
 
         function_ids = self.STRATEGY_FUNCTION_IDS.get(strategy_key, [])
         skipped_dependency_functions = []
+        skipped_runtime_disabled_functions = []
 
         for algorithm_id in function_ids:
             func = self.function_algorithm_registry.get(algorithm_id)
             if not callable(func):
                 continue
             if not self._is_function_algorithm_enabled(algorithm_id):
-                skipped_dependency_functions.append(algorithm_id)
+                if algorithm_id == "ml_005" and self._is_lightgbm_runtime_disabled():
+                    skipped_runtime_disabled_functions.append(algorithm_id)
+                else:
+                    skipped_dependency_functions.append(algorithm_id)
                 continue
 
             try:
-                numbers = self._normalize_numbers(func())
+                generated_numbers = func()
+                if algorithm_id == "ml_005" and self._is_lightgbm_runtime_disabled():
+                    skipped_runtime_disabled_functions.append(algorithm_id)
+                    continue
+                numbers = self._normalize_numbers(generated_numbers)
                 if len(numbers) != 6:
                     continue
                 key = tuple(numbers)
@@ -571,6 +591,12 @@ class LottoEngine:
                 "Skipped strategy '%s' function algorithms due to missing optional dependencies: %s",
                 strategy_key,
                 ", ".join(skipped_dependency_functions),
+            )
+        if skipped_runtime_disabled_functions:
+            _log.info(
+                "Skipped strategy '%s' function algorithms due to runtime disablement: %s",
+                strategy_key,
+                ", ".join(skipped_runtime_disabled_functions),
             )
 
         if len(bank) < target_size:
