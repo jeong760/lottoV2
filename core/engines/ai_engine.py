@@ -19,9 +19,17 @@ from typing import Dict, Any, List, Optional, Tuple
 from collections.abc import Callable
 from data.repositories.lotto_repository import LottoRepository
 from data.repositories.ml_model_repository import MLModelRepository
-from core.engines.statistics_engine import StatisticsEngine
 from ai.ai_learning_model import LottoAILearningModel
 from config import ML_MAX_ITERATIONS, ML_TARGET_ACCURACY, ML_RECENT_DRAWS_LIMIT
+
+try:
+    from core.engines.statistics_engine import StatisticsEngine
+except Exception as e:
+    StatisticsEngine = None
+    _log.warning(
+        "StatisticsEngine could not be initialized (%s). AIEngine will use fallback statistical baselines.",
+        e,
+    )
 
 try:
     from sklearn.cluster import KMeans
@@ -53,6 +61,32 @@ class AIEngine:
             return np.ones(len(probabilities), dtype=np.float64) / max(1, len(probabilities))
 
     @staticmethod
+    def _build_fallback_statistics(all_draws: list[dict[str, Any]]) -> dict[str, Any]:
+        sums = []
+        try:
+            for draw in all_draws or []:
+                if not isinstance(draw, dict):
+                    continue
+                nums = []
+                for i in range(1, 7):
+                    raw_val = draw.get(f"num{i}")
+                    if raw_val is None:
+                        raw_val = draw.get(f"drwtNo{i}")
+                    try:
+                        iv = int(raw_val)
+                        if 1 <= iv <= 45:
+                            nums.append(iv)
+                    except (TypeError, ValueError):
+                        continue
+                if len(nums) == 6:
+                    sums.append(sum(nums))
+        except Exception:
+            sums = []
+
+        avg_sum = (sum(sums) / len(sums)) if sums else 138.5
+        return {"sum_statistics": {"average": float(avg_sum)}}
+
+    @staticmethod
     def run_startup_pipeline(max_iterations: int = ML_MAX_ITERATIONS, target_accuracy: float = ML_TARGET_ACCURACY, progress_callback: Callable | None = None) -> dict[str, Any] | None:
         """Executes the comprehensive training pipeline combining ML models, stats, neural network models, and ensemble voting safely."""
         with AIEngine._lock:
@@ -65,11 +99,16 @@ class AIEngine:
                 _log.warning(f"Insufficient historical draw records: {len(all_draws) if all_draws else 0}")
                 return None
 
-            global_stats = StatisticsEngine.get_comprehensive_statistics()
-            if not global_stats:
-                print("⚠️ Failed to load statistical data.")
-                _log.warning("Failed to load global statistical data in AIEngine pipeline.")
-                return None
+            global_stats = {}
+            if StatisticsEngine is not None:
+                try:
+                    global_stats = StatisticsEngine.get_comprehensive_statistics() or {}
+                except Exception as stats_ex:
+                    _log.warning(f"Failed to load global statistical data in AIEngine pipeline: {stats_ex}", exc_info=True)
+
+            if not isinstance(global_stats, dict) or not global_stats:
+                global_stats = AIEngine._build_fallback_statistics(all_draws)
+                _log.warning("Using fallback statistics baseline in AIEngine pipeline.")
 
             total_draws_count = len(all_draws)
             print(f"📊 Total {total_draws_count} draws loaded. Initializing Deep Learning & ML ensemble loop...")

@@ -25,13 +25,9 @@ def __getattr__(name):
     """Lazy load engine classes on demand to prevent circular imports."""
     if name == "AIEngine":
         try:
-            # Note: AIEngine is implemented in core/ai_engine.py or core/engines/ai_engine.py
-            try:
-                from core.engines.ai_engine import AIEngine
-            except ImportError:
-                from core.ai_engine import AIEngine
+            from .ai_engine import AIEngine
             return AIEngine
-        except ImportError as e:
+        except Exception as e:
             _log.error(f"Failed to load AIEngine: {e}")
             return None
 
@@ -70,12 +66,9 @@ def __getattr__(name):
     elif name == "MLEngineRunner":
         # Since MLEngineRunner was integrated into ai_engine, map it safely to AIEngine
         try:
-            try:
-                from core.engines.ai_engine import AIEngine as MLEngineRunner
-            except ImportError:
-                from core.ai_engine import AIEngine as MLEngineRunner
+            from .ai_engine import AIEngine as MLEngineRunner
             return MLEngineRunner
-        except ImportError as e:
+        except Exception as e:
             _log.warning(f"MLEngineRunner fallback mapping failed: {e}")
             return None
 

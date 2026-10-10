@@ -241,3 +241,7 @@
 2026-10-09 15:40:39 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
 2026-10-09 15:40:39 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
 2026-10-09 15:40:39 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-10 08:49:42 [INFO] [LottoLogger]: Centralized logging initialized. Log path: /home/runner/work/lottoV2/lottoV2/logs/lotto_dashboard.log
+2026-10-10 08:49:42 [INFO] [WorkersModule]: [WorkersModule] Workers package initialization completed (lazy worker import mode).
+2026-10-10 08:49:42 [INFO] [CoreModule]: [CoreModule] Core package initialization completed safely.
+2026-10-10 08:49:42 [ERROR] [CoreModule]: Failed to load AIEngine: No module named 'numpy'

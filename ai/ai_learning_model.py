@@ -6,7 +6,6 @@ import random
 import warnings
 import traceback
 import numpy as np
-import pandas as pd
 from datetime import datetime
 from typing import List, Dict, Any, Tuple, Optional
 
@@ -19,6 +18,14 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 _log = logging.getLogger("AILearningModel")
+
+try:
+    import pandas as pd
+    PANDAS_AVAILABLE = True
+except ImportError:
+    pd = None
+    PANDAS_AVAILABLE = False
+    _log.warning("pandas is not available. Time-series rolling features will run in NumPy fallback mode.")
 
 try:
     import torch
@@ -537,14 +544,19 @@ class LottoAILearningModel:
                     except (ValueError, TypeError):
                         continue
 
-            df_ts = pd.DataFrame(history_matrix, columns=[f"Num_{i}" for i in range(1, 46)])
-            rolling_trends = df_ts.rolling(window=10, min_periods=1).mean()
+            if PANDAS_AVAILABLE and pd is not None:
+                df_ts = pd.DataFrame(history_matrix, columns=[f"Num_{i}" for i in range(1, 46)])
+                rolling_matrix = df_ts.rolling(window=10, min_periods=1).mean().values
+            else:
+                rolling_matrix = np.zeros_like(history_matrix, dtype=np.float64)
+                for row_idx in range(history_matrix.shape[0]):
+                    start_idx = max(0, row_idx - 9)
+                    rolling_matrix[row_idx, :] = np.mean(history_matrix[start_idx:row_idx + 1, :], axis=0)
             
             scores = {}
             raw_scores = []
             for i in range(1, 46):
-                col_name = f"Num_{i}"
-                series = rolling_trends[col_name].values
+                series = rolling_matrix[:, i - 1]
                 
                 arima_score = self._analyze_arima_trend(series)
                 recent_weight = np.mean(series[-5:]) if len(series) >= 5 else 0.1

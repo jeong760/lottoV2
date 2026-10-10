@@ -6,7 +6,6 @@ import time
 import traceback
 import pickle
 import random
-import numpy as np
 
 # Ensure project root is in python path and initialize centralized logging
 current_dir = os.path.dirname(os.path.abspath(__file__))
