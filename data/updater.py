@@ -16,7 +16,7 @@ _log = logging.getLogger("LottoUpdater")
 
 from data.repositories.lotto_repository import LottoRepository
 
-LOTTO_JSON_URL = "https://raw.githubusercontent.com/jeong760/lotto-data/main/data/lotto-history.json"
+LOTTO_JSON_URL = "https://raw.githubusercontent.com/papaya5rhw1984/lotto-data/main/all.json"
 
 
 def get_draw_no(draw: dict) -> int:
