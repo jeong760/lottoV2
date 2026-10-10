@@ -553,7 +553,7 @@ def generate_by_lightgbm_ranker() -> list[int]:
             err_msg = str(fit_error).lower()
             if "access violation" in err_msg:
                 LIGHTGBM_RUNTIME_DISABLED = True
-                _log.warning(
+                _log.info(
                     "LightGBM native fit crashed with access violation; disabling LightGBM for this session and using time-series fallback."
                 )
             else:

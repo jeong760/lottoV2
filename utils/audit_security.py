@@ -21,6 +21,18 @@ _log = logging.getLogger("AuditTrailSecurity")
 _LEGACY_SECRET_KEY = b"LottoV2_Audit_Security_Secret_Key_2026"
 
 
+def _is_truthy_env(name: str) -> bool:
+    return str(os.getenv(name, "") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _is_production_environment() -> bool:
+    env_markers = ("LOTTO_ENV", "APP_ENV", "ENV", "PYTHON_ENV")
+    for marker in env_markers:
+        if str(os.getenv(marker, "") or "").strip().lower() in {"prod", "production"}:
+            return True
+    return _is_truthy_env("LOTTO_PRODUCTION")
+
+
 def _load_audit_secret_key() -> bytes:
     """
     Loads the audit-signing key from environment or a local secret file.
@@ -63,9 +75,13 @@ def _load_audit_secret_key() -> bytes:
         finally:
             if temporary_path and os.path.exists(temporary_path):
                 os.unlink(temporary_path)
-        _log.warning(
+        message = (
             "Generated a new local audit secret file. Set LOTTO_AUDIT_SECRET_KEY in production environments."
         )
+        if _is_production_environment():
+            _log.warning(message)
+        else:
+            _log.info(message)
         return generated
     except Exception as e:
         _log.warning(

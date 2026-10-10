@@ -136,6 +136,31 @@ def test_lightgbm_ranker_access_violation_fallback_and_disable(monkeypatch):
     assert group_ml_ai.LIGHTGBM_RUNTIME_DISABLED is True
 
 
+def test_lightgbm_access_violation_logs_info(monkeypatch, caplog):
+    history_records = _build_history_records(120)
+    monkeypatch.setattr(group_ml_ai.LottoRepository, "get_all_draws", lambda: history_records)
+    monkeypatch.setattr(group_ml_ai, "LIGHTGBM_AVAILABLE", True)
+    monkeypatch.setattr(group_ml_ai, "LIGHTGBM_RUNTIME_DISABLED", False)
+    monkeypatch.setattr(group_ml_ai, "generate_by_timeseries_momentum", lambda: [1, 2, 3, 4, 5, 6])
+
+    class BrokenLGBM:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def fit(self, X, y):
+            raise OSError("exception: access violation reading 0x0000000000000000")
+
+    monkeypatch.setattr(group_ml_ai, "LGBMClassifier", BrokenLGBM, raising=False)
+
+    with caplog.at_level(logging.INFO, logger="GroupMLAIAlgorithms"):
+        group_ml_ai.generate_by_lightgbm_ranker()
+
+    message = "LightGBM native fit crashed with access violation"
+    records = [record for record in caplog.records if message in record.getMessage()]
+    assert records
+    assert all(record.levelname == "INFO" for record in records)
+
+
 def test_class_variant_algorithms_generate_valid_sets():
     history_sets = _build_history_sets(140)
     context = HistoricalContext.build(history_sets)
