@@ -108,6 +108,21 @@ def test_build_backtest_report_lines_error():
     assert lines == ["Backtest failed: failure"]
 
 
+def test_build_backtest_report_lines_handles_non_dict_sections():
+    lines = build_backtest_report_lines(
+        {
+            "status": "success",
+            "test_total_draws": 3,
+            "metric_definition": "invalid",
+            "algorithm": None,
+            "random_baseline": {"metrics": "invalid"},
+        }
+    )
+    assert isinstance(lines, list) and len(lines) > 10
+    assert any("AI Algorithm Model" in line for line in lines)
+    assert any("Random Baseline Comparison" in line for line in lines)
+
+
 def test_build_generation_batch_report_lines_and_text():
     batch_summary = {
         "batch_id": "batch-abc123",

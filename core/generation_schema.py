@@ -37,9 +37,30 @@ def resolve_total_algorithms_active(engine_like: Any, default: int = 0) -> int:
 
 
 def build_generation_stats(numbers: Sequence[int], confidence: float, contributors: int) -> dict[str, Any]:
-    cleaned = sorted(int(n) for n in numbers if 1 <= int(n) <= 45)[:6]
+    cleaned: list[int] = []
+    source_numbers = numbers if isinstance(numbers, Sequence) else []
+    for raw in source_numbers:
+        try:
+            iv = int(raw)
+        except Exception:
+            continue
+        if 1 <= iv <= 45 and iv not in cleaned:
+            cleaned.append(iv)
+    cleaned = sorted(cleaned[:6])
+
     if len(cleaned) < 6:
-        cleaned = sorted(set(cleaned + [1, 8, 15, 23, 34, 42]))[:6]
+        for fallback in (1, 8, 15, 23, 34, 42):
+            if fallback not in cleaned:
+                cleaned.append(fallback)
+            if len(cleaned) >= 6:
+                break
+        if len(cleaned) < 6:
+            for fallback in range(1, 46):
+                if fallback not in cleaned:
+                    cleaned.append(fallback)
+                if len(cleaned) >= 6:
+                    break
+        cleaned = sorted(cleaned[:6])
 
     odd_count = sum(1 for n in cleaned if n % 2 != 0)
     high_count = sum(1 for n in cleaned if n >= 23)
