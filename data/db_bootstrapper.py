@@ -17,7 +17,7 @@ from data.draw_statistics import extract_draw_statistics
 
 _log = logging.getLogger("DBBootstrapper")
 
-GITHUB_JSON_URL = "https://raw.githubusercontent.com/papaya5rhw1984/lotto-data/main/all.json"
+GITHUB_JSON_URL = "https://gist.githubusercontent.com/jeong760/f6abffc409571efb4dee5bab65fa9c73/raw/lotto-history.json"
 
 
 class DBBootstrapper:
